@@ -1,0 +1,1108 @@
+import React, { useState, useEffect, useRef } from "react";
+import { SCHEDULE_JOBS, ALLOT_QUEUE,
+         RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS,
+         SPARE_CATEGORIES, SPARE_SEED } from '../data/seed.js';
+import { TB, SB, DB, Modal, Prog, AStrip } from '../components/atoms.jsx';
+import { RMI_STATUS_BADGE, RMI_STATUS_LBL } from './RawMaterialInventory.jsx';
+import { SPARE_STATUS_BADGE, SPARE_STATUS_LABEL } from './SpareStores.jsx';
+
+const POST_PROCESS_OPTS = {
+    FDM: ["Support Removal", "Sanding", "Priming", "Painting", "Acetone Smoothing"],
+    SLA: ["IPA Wash", "UV Cure", "Support Removal", "Sanding", "Painting"],
+    SLS: ["Depowdering", "Media Blasting", "Dyeing", "Coating", "Sealing"],
+};
+const QC_CHECKS = {
+    FDM: ["Dimensional Check", "Layer Adhesion", "Surface Finish", "Fit Check", "Weight Check"],
+    SLA: ["Dimensional Check", "Surface Quality", "Transparency Check", "Fit Check", "Mechanical Test"],
+    SLS: ["Dimensional Check", "Powder Residue", "Surface Finish", "Tensile Strength", "Weight Check"],
+};
+
+/* small reusable chip-toggle */
+function ChipToggle({ label, active, onToggle, color = "var(--accent)", dimColor = "var(--adim)", onRemove }) {
+    return (
+        <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${active ? color : "var(--border2)"}`, background: active ? dimColor : "var(--bg2)", cursor: "pointer", transition: "all .12s", fontSize: 12, userSelect: "none" }}>
+            <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${active ? color : "var(--border2)"}`, background: active ? color : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {active && <span style={{ color: "#fff", fontSize: 9, lineHeight: 1 }}>✓</span>}
+            </div>
+            {label}
+            {onRemove && <span onClick={e => { e.stopPropagation(); onRemove(); }} style={{ marginLeft: 2, color: "var(--red)", fontSize: 11, lineHeight: 1, cursor: "pointer" }}>×</span>}
+        </div>
+    );
+}
+
+/* section header used inside the review panel */
+function ReviewSection({ num, title, status, children }) {
+    const dot = status === "ok" ? "var(--green)" : status === "warn" ? "var(--gold)" : status === "err" ? "var(--red)" : "var(--border2)";
+    return (
+        <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: "var(--r3)", overflow: "hidden" }}>
+            <div style={{ padding: "10px 16px", background: "var(--bg3)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--bg4)", border: "1px solid var(--border2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontFamily: "var(--fm)", fontWeight: 700, color: "var(--text3)", flexShrink: 0 }}>{num}</div>
+                <span style={{ fontFamily: "var(--fd)", fontSize: 12.5, fontWeight: 700, flex: 1 }}>{title}</span>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: dot, flexShrink: 0 }} />
+            </div>
+            <div style={{ padding: 14 }}>{children}</div>
+        </div>
+    );
+}
+
+function AMReview({ lcProjects, onLcProjectsChange, toast }) {
+    const pending = lcProjects.filter(p => ["submitted", "review"].includes(p.stage));
+    const reviewed = lcProjects.filter(p => !["submitted", "review"].includes(p.stage));
+
+    /* list vs detail view */
+    const [sel, setSel] = useState(null);
+    const [listTab, setListTab] = useState("pending");
+
+    /* per-review state */
+    const [reviewTab, setReviewTab] = useState("slots");
+    const [slotPrinter, setSlotPrinter] = useState(null);
+    const [slotStartTime, setSlotStartTime] = useState(""); // computed from schedule, e.g. "Today 14:15"
+    const [matStatus, setMatStatus] = useState(null);       // "ok"|"low"|"order"
+    const [matConfirmedId, setMatConfirmedId] = useState(null); // which inventory row confirmed
+    const [matOrderNote, setMatOrderNote] = useState("");
+    const [spareStatus, setSpareStatus] = useState(null);   // "ok"|"needed"
+    const [spareConfirmed, setSpareConfirmed] = useState({}); // { id: bool }
+    const [spareNote, setSpareNote] = useState("");
+    const [extraCost, setExtraCost] = useState(false);
+    const [costItems, setCostItems] = useState([{ desc: "", amount: "" }]);
+    const [postProc, setPostProc] = useState({});
+    const [customPostProc, setCustomPostProc] = useState([]);
+    const [newPostProc, setNewPostProc] = useState("");
+    const [qcChecks, setQcChecks] = useState({});
+    const [customQC, setCustomQC] = useState([]);
+    const [newQC, setNewQC] = useState("");
+    const [ppInstructions, setPpInstructions] = useState({});  // { stepName: text }
+    const [ppDone, setPpDone] = useState({});                   // { stepName: bool }
+    const [ppComments, setPpComments] = useState({});           // { stepName: text }
+    const [qcInstructions, setQcInstructions] = useState({});  // { checkName: text }
+    const [qcDone, setQcDone] = useState({});                   // { checkName: bool }
+    const [qcComments, setQcComments] = useState({});           // { checkName: text }
+    const [woMachine, setWoMachine] = useState("");
+    const [woCustomNum, setWoCustomNum] = useState("");
+    const [woOperator, setWoOperator] = useState("Marco R.");
+    const [woSched, setWoSched] = useState(new Date().toISOString().split("T")[0]);
+    const [woPrintTime, setWoPrintTime] = useState("4h 00m");
+    const [woNotes, setWoNotes] = useState("");
+
+    /* job allotment state (embedded in slots tab) */
+    const [jaShowAutoConfirm, setJaShowAutoConfirm] = useState(null);
+    const [jaShowManual, setJaShowManual] = useState(null);
+    const [jaShowPrintLog, setJaShowPrintLog] = useState(null);
+    const [ganttFilter, setGanttFilter] = useState("all");
+
+    const REVIEW_TABS = [
+        { id: "slots",    label: "① Job Allotment" },
+        { id: "material", label: "② Material" },
+        { id: "spares",   label: "③ Spares" },
+        { id: "cost",     label: "④ Extra Cost" },
+        { id: "pp",       label: "⑤ Post-Processing" },
+        { id: "qc",       label: "⑥ QC Inspection" },
+        { id: "wo",       label: "⑦ Work Order" },
+    ];
+
+    function openReview(p) {
+        setSel(p);
+        setReviewTab("slots");
+        setSlotPrinter(null); setSlotStartTime(""); setGanttFilter("all");
+        setMatStatus(null); setMatConfirmedId(null); setMatOrderNote("");
+        setSpareStatus(null); setSpareConfirmed({}); setSpareNote("");
+        setExtraCost(false); setCostItems([{ desc: "", amount: "" }]);
+        setPostProc({}); setCustomPostProc([]); setNewPostProc(""); setPpInstructions({}); setPpDone({}); setPpComments({});
+        setQcChecks({}); setCustomQC([]); setNewQC(""); setQcInstructions({}); setQcDone({}); setQcComments({});
+        setWoMachine(""); setWoCustomNum(""); setWoOperator("Marco R."); setWoNotes("");
+        setWoSched(new Date().toISOString().split("T")[0]);
+        setWoPrintTime("4h 00m");
+    }
+
+    function addCustomPostProc() { if (newPostProc.trim()) { setCustomPostProc(p => [...p, newPostProc.trim()]); setPostProc(p => ({ ...p, [newPostProc.trim()]: true })); setNewPostProc(""); } }
+    function addCustomQC()       { if (newQC.trim())       { setCustomQC(p => [...p, newQC.trim()]);             setQcChecks(p => ({ ...p, [newQC.trim()]: true }));             setNewQC(""); } }
+    function removeCustomPostProc(opt) { setCustomPostProc(p => p.filter(x => x !== opt)); setPostProc(p => { const n = { ...p }; delete n[opt]; return n; }); }
+    function removeCustomQC(opt)       { setCustomQC(p => p.filter(x => x !== opt));       setQcChecks(p => { const n = { ...p }; delete n[opt]; return n; }); }
+
+    function approve() {
+        const ts = new Date().toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+        const woId = "WO-" + (woCustomNum || (2060 + lcProjects.length));
+        const summary = [
+            slotPrinter ? `Machine: ${slotPrinter}` : "",
+            matStatus   ? `Material: ${matStatus}` : "",
+            spareStatus ? `Spares: ${Object.values(spareConfirmed).filter(Boolean).length} confirmed` : "",
+            extraCost   ? "Extra costs logged" : "",
+            Object.keys(postProc).filter(k => postProc[k]).length ? `Post-proc: ${Object.keys(postProc).filter(k => postProc[k]).join(", ")}` : "",
+            Object.keys(qcChecks).filter(k => qcChecks[k]).length ? `QC: ${Object.keys(qcChecks).filter(k => qcChecks[k]).join(", ")}` : "",
+            woNotes ? `Notes: ${woNotes}` : "",
+        ].filter(Boolean).join(" · ");
+
+        const updated = lcProjects.map(p => {
+            if (p.id !== sel.id) return p;
+            const hist = p.history.map(h => {
+                if (h.stage === "review")   return { ...h, done: true, time: ts, note: `AM Review complete. ${summary}` };
+                if (h.stage === "planning") return { ...h, done: false, time: "In progress", note: `${woId} created. ${slotPrinter ? "Machine: " + slotPrinter : ""}` };
+                return h;
+            });
+            return { ...p, stage: "planning", woId, machine: slotPrinter || "", history: hist };
+        });
+        onLcProjectsChange(updated);
+        toast(`Approved — ${woId} created`, "s");
+        setSel(null);
+    }
+
+    function reject() {
+        const updated = lcProjects.map(p => p.id !== sel.id ? p : { ...p, stage: "submitted" });
+        onLcProjectsChange(updated);
+        toast("Returned to requester", "w");
+        setSel(null);
+    }
+
+    /* slot status indicator per review tab */
+    const tabStatus = {
+        slots:    slotPrinter ? "ok" : null,
+        material: matStatus === "ok" ? "ok" : matStatus ? "warn" : null,
+        spares:   Object.values(spareConfirmed).some(Boolean) ? (SPARE_SEED.some(s => s.status === "critical" && !spareConfirmed[s.id]) ? "warn" : "ok") : null,
+        cost:     extraCost ? "warn" : "ok",
+        pp:       Object.values(postProc).some(Boolean) ? "ok" : null,
+        qc:       Object.values(qcChecks).some(Boolean) ? "ok" : null,
+        wo:       woMachine ? "ok" : null,
+    };
+
+    /* printer options for the slot + WO tabs — pulled from SCHEDULE_JOBS */
+    const printersByTech = sel ? SCHEDULE_JOBS.filter(j => j.tech === sel.tech) : [];
+
+    /* ── LIST VIEW ── */
+    if (!sel) return (
+        <div>
+            <div className="pg-hd"><span className="pg-eyebrow">OPERATIONS</span><h1 className="pg-title">AM Review</h1></div>
+            <div className="g g4 mb16">
+                {[
+                    { l: "Pending Review", v: pending.length, c: "cy" },
+                    { l: "In Planning",    v: lcProjects.filter(p => p.stage === "planning").length, c: "cc" },
+                    { l: "In Production",  v: lcProjects.filter(p => p.stage === "printing").length, c: "cg" },
+                    { l: "Completed",      v: lcProjects.filter(p => p.stage === "closed").length, c: "cp" },
+                ].map(k => <div key={k.l} className={`kpi ${k.c}`}><div className="kl">{k.l}</div><div className="kv">{k.v}</div></div>)}
+            </div>
+
+            <Tabs tabs={[{ id: "pending", label: `Pending (${pending.length})` }, { id: "inprogress", label: "In Progress" }]} active={listTab} onChange={setListTab} />
+
+            {listTab === "pending" && (
+                pending.length === 0
+                    ? <div className="card"><div className="cb" style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>✓ No pending requests</div></div>
+                    : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {pending.map(p => (
+                            <div key={p.id} className={`req-card ${(p.dept || "eng").toLowerCase()}`}>
+                                <div className="rowsb mb6">
+                                    <div>
+                                        <span style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700 }}>{p.name}</span>
+                                        <span className="mono" style={{ marginLeft: 10, fontSize: 10, color: "var(--text3)" }}>{p.id}</span>
+                                    </div>
+                                    <div className="row" style={{ gap: 6 }}>
+                                        <TB tech={p.tech} /><SB s={p.priority || "normal"} />
+                                        <button className="btn btp bts" onClick={() => openReview(p)}>Open Review →</button>
+                                    </div>
+                                </div>
+                                <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+                                    {[["By", p.owner], ["Dept", p.dept || "—"], ["Material", p.material], ["Qty", p.qty], ["Due", p.due || "—"]].map(([k, v]) =>
+                                        <span key={k} className="tiny">{k}: <strong>{v}</strong></span>
+                                    )}
+                                </div>
+                                {p.requestNote && <div className="tiny mt6" style={{ fontStyle: "italic", color: "var(--text2)" }}>"{p.requestNote}"</div>}
+                            </div>
+                        ))}
+                    </div>
+            )}
+
+            {listTab === "inprogress" && (
+                <div className="card"><div className="tw"><table>
+                    <thead><tr><th>Request</th><th>Owner</th><th>Tech</th><th>Stage</th><th>WO</th><th>Machine</th></tr></thead>
+                    <tbody>
+                        {reviewed.map(p => (
+                            <tr key={p.id}>
+                                <td><div style={{ fontWeight: 600 }}>{p.name}</div><div className="tiny">{p.id}</div></td>
+                                <td className="tdim">{p.owner}</td>
+                                <td><TB tech={p.tech} /></td>
+                                <td><SB s={p.stage} /></td>
+                                <td className="mono">{p.woId || "—"}</td>
+                                <td className="tdim">{p.machine || "—"}</td>
+                            </tr>
+                        ))}
+                        {reviewed.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text3)", padding: 30 }}>No requests in progress</td></tr>}
+                    </tbody>
+                </table></div></div>
+            )}
+        </div>
+    );
+
+    /* ── DETAIL REVIEW VIEW ── */
+    return (
+        <div>
+            {/* breadcrumb header */}
+            <div className="rowsb mb16">
+                <div className="row" style={{ gap: 10 }}>
+                    <button className="btn btg bts" onClick={() => setSel(null)}>← All Requests</button>
+                    <div>
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 15, fontWeight: 800 }}>{sel.name}</div>
+                        <div className="tiny mt4">{sel.id} · <TB tech={sel.tech} /> · {sel.owner} · {sel.dept || "—"} · Due {sel.due || "—"}</div>
+                    </div>
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                    <button className="btn btg bts" onClick={reject} style={{ color: "var(--red)", borderColor: "rgba(220,38,38,.3)" }}>✕ Return</button>
+                    <button className="btn btp" onClick={approve} disabled={!slotPrinter || !matStatus || !woMachine}>
+                        ✓ Approve &amp; Create WO
+                    </button>
+                </div>
+            </div>
+
+            {/* request summary strip */}
+            <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "10px 16px", marginBottom: 16, display: "flex", gap: 24, flexWrap: "wrap" }}>
+                {[["Material", sel.material], ["Qty", sel.qty + " pcs"], ["Priority", sel.priority || "normal"], ["Due", sel.due || "—"]].map(([k, v]) => (
+                    <div key={k}><div className="tiny mb2">{k}</div><div style={{ fontSize: 12.5, fontWeight: 600 }}>{v}</div></div>
+                ))}
+                {sel.requestNote && <div style={{ borderLeft: "2px solid var(--border2)", paddingLeft: 16 }}><div className="tiny mb2">Requester Note</div><div style={{ fontSize: 12, fontStyle: "italic", color: "var(--text2)" }}>{sel.requestNote}</div></div>}
+            </div>
+
+            {/* progress pills */}
+            <div style={{ display: "flex", gap: 4, marginBottom: 16, flexWrap: "wrap" }}>
+                {REVIEW_TABS.map(t => {
+                    const st = tabStatus[t.id];
+                    const isActive = reviewTab === t.id;
+                    return (
+                        <button key={t.id} onClick={() => setReviewTab(t.id)} style={{ padding: "6px 14px", borderRadius: 20, border: `1.5px solid ${isActive ? "var(--accent)" : st === "ok" ? "rgba(15,155,106,.4)" : st === "warn" ? "rgba(184,134,11,.4)" : "var(--border2)"}`, background: isActive ? "var(--adim)" : st === "ok" ? "rgba(15,155,106,.07)" : st === "warn" ? "var(--golddim)" : "var(--bg2)", color: isActive ? "var(--accent)" : st === "ok" ? "var(--green)" : st === "warn" ? "var(--gold)" : "var(--text2)", fontSize: 11.5, fontWeight: isActive ? 700 : 500, cursor: "pointer", transition: "all .12s", fontFamily: "var(--fd)" }}>
+                            {t.label} {st === "ok" ? "✓" : st === "warn" ? "⚠" : ""}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* ── TAB: JOB ALLOTMENT ── */}
+            {reviewTab === "slots" && (() => {
+                const priorityBadge = { low: "bnorm", medium: "bwait", high: "burgent" };
+                const PRINT_LOG = [
+                    { job: "Job 2 for PRUSA01", code: "BUSY-PRUSA01", start: "19-03 18:29", dur: "9h" },
+                    { job: "Job 3 for PRUSA01", code: "BUSY-PRUSA01", start: "20-03 03:29", dur: "9h" },
+                    { job: "Job 4 for PRUSA01", code: "BUSY-PRUSA01", start: "20-03 12:29", dur: "12h" },
+                    { job: "Job 5 for PRUSA01", code: "BUSY-PRUSA01", start: "20-03 22:29", dur: "—" },
+                ];
+                // Build a single queue entry for the current request being reviewed
+                const thisJob = [{
+                    id: sel.id,
+                    code: sel.id,
+                    name: sel.name,
+                    estTime: woPrintTime || "—",
+                    items: sel.qty,
+                    priority: sel.priority || "normal",
+                    tech: sel.tech,
+                    deadline: sel.due || "—",
+                    status: "unassigned",
+                }];
+                return (
+                    <div>
+                        {/* ── Header ── */}
+                        <div className="mb14">
+                            <div style={{ fontFamily: "var(--fd)", fontSize: 14, fontWeight: 700 }}>Job Allotment</div>
+                            <div className="tiny dim">Assign this request to an available printer</div>
+                        </div>
+
+                        {/* ── Gantt Chart from Print Schedule ── */}
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>
+                            Current Print Schedule — Day View
+                        </div>
+                        <div className="card mb16" style={{ boxShadow: "none", border: "1px solid var(--border)" }}>
+                            <div className="ch" style={{ padding: "8px 14px" }}>
+                                <span className="ct">Schedule Gantt</span>
+                                <div className="row" style={{ gap: 6 }}>
+                                    {[["All", "all"], ["FDM", "FDM"], ["SLA", "SLA"], ["SLS", "SLS"]].map(([label, val]) => (
+                                        <button key={val} onClick={() => setGanttFilter(val)} className={`btn bts ${ganttFilter === val ? "btp" : "btg"}`} style={{ fontSize: 10, padding: "3px 10px" }}>{label}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div style={{ overflowX: "auto" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "140px repeat(17,1fr)", borderBottom: "1px solid var(--border)", background: "var(--bg3)", minWidth: 640 }}>
+                                    <div style={{ padding: "6px 12px", fontFamily: "var(--fm)", fontSize: 9, letterSpacing: "1.2px", color: "var(--text3)", textTransform: "uppercase", borderRight: "1px solid var(--border)" }}>Printer</div>
+                                    {Array.from({ length: 17 }, (_, i) => i).map(h => (
+                                        <div key={h} style={{ padding: "6px 2px", fontFamily: "var(--fm)", fontSize: 9, color: "var(--text3)", textAlign: "center", borderRight: "1px solid var(--border)" }}>{String(h + 6).padStart(2, "0")}:00</div>
+                                    ))}
+                                </div>
+                                {(ganttFilter === "all" ? SCHEDULE_JOBS : SCHEDULE_JOBS.filter(j => j.tech === ganttFilter)).map(row => {
+                                    const isSelected = slotPrinter === row.printer;
+                                    const colPct = 100 / 17;
+                                    return (
+                                        <div key={row.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(17,1fr)", borderBottom: "1px solid var(--border)", minHeight: 40, position: "relative", minWidth: 640, background: isSelected ? "rgba(37,99,235,.03)" : "" }}>
+                                            <div style={{ padding: "8px 12px", borderRight: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6 }}>
+                                                <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: row.status === "printing" ? "var(--green)" : row.status === "maintenance" ? "var(--yellow)" : "var(--border2)" }} />
+                                                <div style={{ fontSize: 10.5, fontWeight: isSelected ? 700 : 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: isSelected ? "var(--accent)" : row.status === "maintenance" ? "var(--yellow)" : "var(--text)" }}>
+                                                    {row.printer}{isSelected ? " ✓" : ""}
+                                                </div>
+                                            </div>
+                                            {Array.from({ length: 17 }, (_, h) => (
+                                                <div key={h} style={{ borderRight: "1px solid var(--border)", background: h === 4 ? "rgba(37,99,235,.025)" : "" }} />
+                                            ))}
+                                            {row.job && row.dur > 0 && (
+                                                <div style={{ position: "absolute", top: 6, height: 26, left: `calc(140px + ${row.start * colPct}%)`, width: `${row.dur * colPct}%`, background: row.status === "printing" ? "var(--green)" : "var(--accent)", borderRadius: "var(--r)", display: "flex", alignItems: "center", paddingLeft: 6, fontSize: 9, fontWeight: 600, color: "#fff", zIndex: 2, overflow: "hidden", whiteSpace: "nowrap" }}>
+                                                    {row.job}
+                                                </div>
+                                            )}
+                                            {row.status === "maintenance" && (
+                                                <div style={{ position: "absolute", top: 6, height: 26, left: "140px", right: 0, background: "repeating-linear-gradient(45deg,rgba(184,134,11,.08),rgba(184,134,11,.08) 4px,transparent 4px,transparent 10px)", borderRadius: "var(--r)", display: "flex", alignItems: "center", paddingLeft: 8, fontSize: 9, color: "var(--gold)", fontWeight: 600 }}>
+                                                    ⚙ Maintenance
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ padding: "8px 14px", borderTop: "1px solid var(--border)", display: "flex", gap: 16, flexWrap: "wrap" }}>
+                                {[["var(--green)", "Printing"], ["var(--accent)", "Scheduled"], ["var(--border2)", "Idle"], ["var(--yellow)", "Maintenance"]].map(([col, label]) => (
+                                    <div key={label} className="row" style={{ gap: 5 }}>
+                                        <div style={{ width: 10, height: 10, borderRadius: 2, background: col, flexShrink: 0 }} />
+                                        <span className="tiny">{label}</span>
+                                    </div>
+                                ))}
+                                {slotPrinter && <div className="row" style={{ gap: 5, marginLeft: "auto" }}><span className="tiny" style={{ color: "var(--accent)", fontWeight: 700 }}>✓ Selected: {slotPrinter}</span></div>}
+                            </div>
+                        </div>
+
+                        {/* ── Single job queue ── */}
+                        <div className="card mb16">
+                            <div className="ch">
+                                <div><span className="ct">Request Pending Allotment</span></div>
+                            </div>
+                            <div className="tw">
+                                <table>
+                                    <thead><tr><th>Project Name</th><th>Est. Time</th><th>Items</th><th>Priority</th><th>Technology</th><th>Deadline</th><th style={{ textAlign: "right" }}>Actions</th></tr></thead>
+                                    <tbody>
+                                        {thisJob.map(q => (
+                                            <tr key={q.id} style={{ background: "rgba(37,99,235,.03)" }}>
+                                                <td>
+                                                    <div style={{ fontWeight: 700, fontSize: 12 }}>{q.name}</div>
+                                                    <div className="tiny">{q.code}</div>
+                                                </td>
+                                                <td className="mono">{q.estTime}</td>
+                                                <td className="mono">{q.items}</td>
+                                                <td><span className={`b ${priorityBadge[q.priority] || "bnorm"}`} style={{ fontSize: 9 }}>{q.priority.charAt(0).toUpperCase() + q.priority.slice(1)}</span></td>
+                                                <td><TB tech={q.tech} /></td>
+                                                <td className="mono">{q.deadline}</td>
+                                                <td style={{ textAlign: "right" }}>
+                                                    <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
+                                                        <button className="btn btp bts" style={{ fontSize: 10 }} onClick={() => setJaShowAutoConfirm(q)}>⚡ Auto</button>
+                                                        <button className="btn btg bts" style={{ fontSize: 10 }} onClick={() => setJaShowManual(q)}>✎ Manual</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* ── Printer Grid ── */}
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>Printer Availability</div>
+                        <div className="g g4 mb16">
+                            {SCHEDULE_JOBS.map(p => {
+                                const isSelected = slotPrinter === p.printer;
+                                const busy = p.status === "printing" || p.status === "maintenance";
+                                // Compute next available start time from schedule data
+                                // Hours are offset from 06:00. If busy, available after current job ends.
+                                const BASE_H = 6; // day starts at 06:00
+                                let nextH, nextMin;
+                                if (p.status === "maintenance") {
+                                    nextH = BASE_H + 8; nextMin = 0; // assume back at 14:00
+                                } else if (p.status === "printing" && p.start != null && p.dur > 0) {
+                                    const endH = BASE_H + p.start + p.dur;
+                                    nextH = endH; nextMin = 15; // 15 min setup after job ends
+                                } else if (p.status === "waiting") {
+                                    nextH = BASE_H + (p.start || 0) + 1; nextMin = 0;
+                                } else {
+                                    // idle — next slot is now (current time approx 10:00)
+                                    nextH = 10; nextMin = 0;
+                                }
+                                // Clamp to same day 06:00–23:00
+                                if (nextH >= 24) { nextH = 8; nextMin = 0; } // spills to next day
+                                const nextTime = `${String(nextH).padStart(2,"0")}:${String(nextMin).padStart(2,"0")}`;
+                                const isNextDay = p.start != null && p.dur > 0 && (BASE_H + p.start + p.dur) >= 24;
+                                return (
+                                    <div key={p.id}
+                                        className={`mc ${p.status === "printing" ? "running" : p.status === "maintenance" ? "maintenance" : "idle"}`}
+                                        style={{ cursor: busy ? "default" : "pointer", outline: isSelected ? "2px solid var(--accent)" : "none", outlineOffset: 2 }}
+                                        onClick={() => { if (p.job) setJaShowPrintLog(p); else if (!busy) { setSlotPrinter(p.printer); setSlotStartTime(`${isNextDay ? "Tomorrow " : "Today "}${nextTime}`); } }}>
+                                        <div className="rowsb mb6">
+                                            <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700 }}>{p.printer}</div>
+                                            <div style={{ display: "flex", gap: 4 }}>
+                                                <TB tech={p.tech} />
+                                                <SB s={p.status === "printing" ? "running" : p.status} />
+                                            </div>
+                                        </div>
+                                        {p.job
+                                            ? <><div className="tiny mb4" style={{ color: "var(--text2)" }}>{p.job}</div><Prog pct={65} h={4} /></>
+                                            : p.status === "maintenance"
+                                                ? <div className="tiny" style={{ color: "var(--yellow)" }}>Under maintenance</div>
+                                                : null}
+                                        {/* Next available time — shown on every card */}
+                                        <div className="tiny mt6" style={{ color: busy ? "var(--text3)" : "var(--green)", fontFamily: "var(--fm)", fontWeight: busy ? 400 : 600 }}>
+                                            {busy
+                                                ? `Available: ${isNextDay ? "Tomorrow " : ""}${nextTime}`
+                                                : `✓ Start now · ${nextTime}`}
+                                        </div>
+                                        {isSelected && <div className="tiny mt4" style={{ color: "var(--accent)", fontWeight: 700 }}>✓ Selected</div>}
+                                        {p.job && <div className="tiny mt4" style={{ color: "var(--text3)" }}>▷ View print log</div>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {slotPrinter
+                            ? <div className="astrip info" style={{ marginBottom: 0 }}>
+                                ✓ Allotted to <strong>{slotPrinter}</strong>
+                                {slotStartTime ? ` · Starts ${slotStartTime}` : ""}
+                                {sel.estHrs || sel.estMin ? ` · Est. ${sel.estHrs || 0}h ${sel.estMin || 0}m` : ""}
+                              </div>
+                            : <div className="astrip warn" style={{ marginBottom: 0 }}>Click an available printer above to confirm the slot for this job.</div>}
+
+                        {/* ── Auto Confirm Modal ── */}
+                        {jaShowAutoConfirm && (() => {
+                            // Find earliest available printer matching the job's tech
+                            const BASE_H = 6;
+                            const sameTech = SCHEDULE_JOBS.filter(p => p.tech === sel.tech);
+                            const withTime = (sameTech.length > 0 ? sameTech : SCHEDULE_JOBS).map(p => {
+                                let avail;
+                                if (p.status === "maintenance") avail = BASE_H + 8;
+                                else if (p.status === "printing" && p.start != null && p.dur > 0) avail = BASE_H + p.start + p.dur + 0.25;
+                                else if (p.status === "waiting") avail = BASE_H + (p.start || 0) + 1;
+                                else avail = 10; // idle now
+                                return { ...p, availH: avail };
+                            });
+                            const best = withTime.sort((a, b) => a.availH - b.availH)[0];
+                            const eh = Math.floor(best.availH) % 24;
+                            const em = Math.round((best.availH % 1) * 60);
+                            const isNextDay = best.availH >= 24;
+                            const timeStr = `${String(eh).padStart(2,"0")}:${String(em).padStart(2,"0")}`;
+                            const labelStr = `${isNextDay ? "Tomorrow" : "Today"} ${timeStr}`;
+                            return (
+                                <Modal title="Confirm Auto-Assignment" onClose={() => setJaShowAutoConfirm(null)} footer={(
+                                    <><button className="btn btg bts" onClick={() => setJaShowAutoConfirm(null)}>✕ Cancel</button>
+                                        <button className="btn btp bts" onClick={() => {
+                                            setSlotPrinter(best.printer);
+                                            setSlotStartTime(labelStr);
+                                            setJaShowAutoConfirm(null);
+                                            toast(`Auto-assigned to ${best.printer} · Starts ${labelStr}`, "s");
+                                        }}>✓ Confirm &amp; Assign</button></>
+                                )}>
+                                    <div className="astrip info mb12">Earliest available {sel.tech} printer found. Review and confirm.</div>
+                                    <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: 14 }}>
+                                        <div className="tiny mb8" style={{ color: "var(--text3)", fontFamily: "var(--fm)", letterSpacing: "1px" }}>ASSIGNMENT DETAILS</div>
+                                        <div className="rowsb mb8">
+                                            <span className="tiny">Project</span>
+                                            <span style={{ fontSize: 12, fontWeight: 600 }}>{jaShowAutoConfirm.name}</span>
+                                        </div>
+                                        <div className="rowsb mb8">
+                                            <span className="tiny">Assigned Printer</span>
+                                            <div className="row" style={{ gap: 6 }}>
+                                                <span style={{ fontSize: 12, fontWeight: 600 }}>{best.printer}</span>
+                                                <TB tech={best.tech} />
+                                                <SB s={best.status === "printing" ? "running" : best.status} />
+                                            </div>
+                                        </div>
+                                        <div className="rowsb mb8">
+                                            <span className="tiny">Current Status</span>
+                                            <span style={{ fontSize: 12 }}>{best.status === "idle" ? "Idle — available now" : best.job ? `Printing ${best.job}` : best.status}</span>
+                                        </div>
+                                        <div className="rowsb">
+                                            <span className="tiny">Earliest Start</span>
+                                            <span style={{ fontSize: 13, fontFamily: "var(--fm)", fontWeight: 700, color: "var(--green)" }}>{labelStr}</span>
+                                        </div>
+                                    </div>
+                                </Modal>
+                            );
+                        })()}
+
+                        {/* ── Manual Assign Modal ── */}
+                        {jaShowManual && (() => {
+                            const BASE_H = 6;
+                            // Show ALL printers except maintenance — idle AND printing, sorted by earliest available
+                            const selectable = SCHEDULE_JOBS
+                                .filter(p => p.status !== "maintenance")
+                                .map(p => {
+                                    let avail;
+                                    if (p.status === "printing" && p.start != null && p.dur > 0) avail = BASE_H + p.start + p.dur + 0.25;
+                                    else if (p.status === "waiting") avail = BASE_H + (p.start || 0) + 1;
+                                    else avail = 10;
+                                    const eh = Math.floor(avail) % 24;
+                                    const em = Math.round((avail % 1) * 60);
+                                    const isNextDay = avail >= 24;
+                                    const timeStr = `${String(eh).padStart(2,"0")}:${String(em).padStart(2,"0")}`;
+                                    return { ...p, availH: avail, nextSlot: `${isNextDay ? "Tomorrow " : "Today "}${timeStr}` };
+                                })
+                                .sort((a, b) => a.availH - b.availH);
+                            return (
+                                <Modal title="Manual Project Assignment" onClose={() => setJaShowManual(null)} footer={(
+                                    <><button className="btn btg bts" onClick={() => setJaShowManual(null)}>Cancel</button>
+                                        <button className="btn btp bts"
+                                            disabled={!slotPrinter}
+                                            onClick={() => {
+                                                const chosen = selectable.find(p => p.printer === slotPrinter);
+                                                if (chosen) setSlotStartTime(chosen.nextSlot);
+                                                setJaShowManual(null);
+                                                toast(`Assigned to ${slotPrinter}`, "s");
+                                            }}>✓ Assign to Selected Printer</button></>
+                                )}>
+                                    <div className="tiny mb12" style={{ color: "var(--text2)" }}>
+                                        Select any printer — idle or printing. Sorted by earliest available slot. The job will queue after the current print finishes.
+                                    </div>
+                                    {selectable.map(p => {
+                                        const isChosen = slotPrinter === p.printer;
+                                        const queueLen = p.status === "printing" ? 3 : p.status === "waiting" ? 1 : 0;
+                                        return (
+                                            <div key={p.id} onClick={() => { setSlotPrinter(p.printer); setSlotStartTime(p.nextSlot); }}
+                                                style={{ background: isChosen ? "var(--adim)" : "var(--bg3)", border: `1.5px solid ${isChosen ? "var(--accent)" : "var(--border)"}`, borderRadius: "var(--r2)", padding: "12px 14px", cursor: "pointer", transition: "all .12s", marginBottom: 8 }}>
+                                                <div className="rowsb mb4">
+                                                    <div className="row" style={{ gap: 8 }}>
+                                                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.status === "printing" ? "var(--green)" : "var(--border2)", flexShrink: 0 }} />
+                                                        <span style={{ fontSize: 13, fontWeight: 700 }}>{p.printer}</span>
+                                                    </div>
+                                                    <div className="row" style={{ gap: 6 }}>
+                                                        <TB tech={p.tech} />
+                                                        <SB s={p.status === "printing" ? "running" : p.status} />
+                                                        {isChosen && <span style={{ color: "var(--accent)", fontSize: 11, fontWeight: 700 }}>✓</span>}
+                                                    </div>
+                                                </div>
+                                                <div className="rowsb">
+                                                    <div className="tiny">
+                                                        {p.status === "printing"
+                                                            ? <>{p.job} · {queueLen} job{queueLen !== 1 ? "s" : ""} in queue</>
+                                                            : "No active job"}
+                                                    </div>
+                                                    <div style={{ fontFamily: "var(--fm)", fontSize: 11, fontWeight: 700, color: p.status === "idle" ? "var(--green)" : "var(--text2)" }}>
+                                                        {p.nextSlot}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </Modal>
+                            );
+                        })()}
+
+                        {/* ── Print Log Modal ── */}
+                        {jaShowPrintLog && (
+                            <Modal title={`Print Log — ${jaShowPrintLog.printer}`} onClose={() => setJaShowPrintLog(null)}>
+                                <div className="tiny mb12">Upcoming jobs scheduled for this printer.</div>
+                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                    <thead><tr><th>Project</th><th>Start Time</th><th>Duration</th></tr></thead>
+                                    <tbody>
+                                        {PRINT_LOG.map((j, i) => (
+                                            <tr key={i}><td><div style={{ fontSize: 12, fontWeight: 500 }}>{j.job}</div><div className="tiny">{j.code}</div></td><td className="mono">{j.start}</td><td className="mono">{j.dur}</td></tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </Modal>
+                        )}
+                    </div>
+                );
+            })()}
+
+            {/* ── TAB: MATERIAL ── */}
+            {reviewTab === "material" && (() => {
+                const allInv = sel.tech === "FDM" ? RAW_FILAMENTS : sel.tech === "SLA" ? RAW_RESINS : RAW_POWDERS;
+                const unit = sel.tech === "SLA" ? "L" : sel.tech === "SLS" ? "kg" : "spools";
+
+                // Build list of materials needed from the print request groups
+                const projectMats = [];
+                (sel.groups || []).forEach((grp, gi) => {
+                    (grp.materials || []).forEach((mat, mi) => {
+                        const name = mat.custom ? (mat.customName || mat.matType || "Custom") : (mat.matName || mat.matType || sel.material || "—");
+                        const grams = mat.grams ? +mat.grams * +grp.qty : null;
+                        projectMats.push({ key: `${gi}-${mi}`, name, type: mat.matType, color: mat.customHex || null, colorName: mat.colorName || mat.customName || "", finish: mat.finish, grams, grpQty: grp.qty, grpLabel: `Group ${gi + 1}`, custom: mat.custom });
+                    });
+                });
+                // If no groups saved (seed data), fall back to single material row
+                if (projectMats.length === 0) projectMats.push({ key: "0", name: sel.material || "—", type: sel.material, grams: null, grpQty: sel.qty, grpLabel: "All items", custom: false });
+
+                return (
+                    <ReviewSection num="2" title="Material Availability" status={tabStatus.material}>
+                        {/* Materials needed from this project */}
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 8 }}>
+                            Materials Required for This Project
+                        </div>
+                        <div className="card mb16" style={{ boxShadow: "none", border: "1px solid var(--border)" }}>
+                            <div className="tw">
+                                <table>
+                                    <thead><tr><th>Group</th><th>Color</th><th>Material</th><th>Type / Finish</th><th>g / item</th><th>Total (g)</th></tr></thead>
+                                    <tbody>
+                                        {projectMats.map(m => (
+                                            <tr key={m.key}>
+                                                <td className="tiny">{m.grpLabel}<br/><span style={{ color: "var(--text3)" }}>{m.grpQty} pcs</span></td>
+                                                <td>
+                                                    {m.color
+                                                        ? <div className="row" style={{ gap: 6 }}>
+                                                            <div style={{ width: 20, height: 20, borderRadius: "50%", background: m.color, border: "1px solid rgba(0,0,0,.15)", flexShrink: 0, boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                                                            <span className="tiny">{m.colorName || m.color}</span>
+                                                          </div>
+                                                        : <span className="tiny" style={{ color: "var(--text3)" }}>—</span>}
+                                                </td>
+                                                <td style={{ fontWeight: 600, fontSize: 12 }}>{m.name}</td>
+                                                <td className="tdim">{[m.type, m.finish].filter(Boolean).join(" · ") || "—"}</td>
+                                                <td>
+                                                    <span style={{ fontFamily: "var(--fd)", fontWeight: 700, color: m.grams != null ? "var(--text)" : "var(--text3)" }}>
+                                                        {m.grams != null ? `${(m.grams / m.grpQty).toFixed(0)} g` : "—"}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span style={{ fontFamily: "var(--fd)", fontWeight: 800, fontSize: 13, color: m.grams ? "var(--accent)" : "var(--text3)" }}>
+                                                        {m.grams != null ? `${m.grams.toLocaleString()} g` : "—"}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Inventory cards — same style as Raw Material Inventory */}
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>
+                            {sel.tech} Inventory — Confirm Availability
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, marginBottom: 20 }}>
+                            {allInv.map(m => {
+                                // Try to match this inventory item against any project material
+                                const isReq = projectMats.some(pm =>
+                                    (pm.name || "").toLowerCase().includes(m.name.toLowerCase()) ||
+                                    m.name.toLowerCase().includes((pm.type || pm.name || "").toLowerCase())
+                                );
+                                const confirmed = matConfirmedId === m.id;
+                                const pct = Math.min((m.qty / Math.max((m.minQty || 1) * 3, 1)) * 100, 100);
+                                const barCol = m.status === "ok" ? "var(--green)" : m.status === "low" ? "var(--gold)" : "var(--red)";
+                                return (
+                                    <div key={m.id} style={{ background: confirmed ? "rgba(15,155,106,.04)" : "var(--bg2)", border: `1.5px solid ${confirmed ? "rgba(15,155,106,.5)" : isReq ? "rgba(37,99,235,.4)" : m.status === "critical" ? "rgba(220,38,38,.35)" : m.status === "low" ? "rgba(184,134,11,.3)" : "var(--border)"}`, borderRadius: "var(--r3)", padding: 14, position: "relative", boxShadow: "var(--shadow)" }}>
+                                        {isReq && !confirmed && <div style={{ position: "absolute", top: 8, right: 8, background: "var(--adim)", border: "1px solid rgba(37,99,235,.2)", borderRadius: 10, padding: "1px 7px", fontSize: 9, color: "var(--accent)", fontFamily: "var(--fm)", fontWeight: 700 }}>NEEDED</div>}
+                                        {confirmed && <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(15,155,106,.12)", border: "1px solid rgba(15,155,106,.3)", borderRadius: 10, padding: "1px 7px", fontSize: 9, color: "var(--green)", fontFamily: "var(--fm)", fontWeight: 700 }}>✓ CONFIRMED</div>}
+                                        <div className="row mb6" style={{ gap: 8, paddingRight: 72 }}>
+                                            <div style={{ width: 16, height: 16, borderRadius: "50%", background: m.color, border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
+                                            <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
+                                        </div>
+                                        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 8 }}>
+                                            {m.brand}{(m.type || m.material) ? ` · ${m.type || m.material}` : ""}{m.colorName ? ` · ${m.colorName}` : ""}
+                                        </div>
+                                        <div className="rowsb mb4">
+                                            <span className="tiny">{unit === "spools" ? "Spools" : unit === "L" ? "Available" : "Remaining"}</span>
+                                            <span style={{ fontFamily: "var(--fd)", fontSize: 14, fontWeight: 700, color: barCol }}>{m.qty} <span style={{ fontSize: 10, fontWeight: 400, color: "var(--text3)" }}>{m.unit || unit}</span></span>
+                                        </div>
+                                        <div style={{ background: "var(--bg4)", borderRadius: 3, height: 7, overflow: "hidden", marginBottom: 6 }}>
+                                            <div style={{ width: `${pct}%`, background: barCol, height: 7, borderRadius: 3 }} />
+                                        </div>
+                                        <div className="rowsb mb10">
+                                            <span className="tiny">Min: <strong>{m.minQty} {m.unit || unit}</strong></span>
+                                            <span className={`b ${RMI_STATUS_BADGE[m.status]}`} style={{ fontSize: 9 }}>{RMI_STATUS_LBL[m.status]}</span>
+                                        </div>
+                                        {m.status !== "critical"
+                                            ? <button onClick={() => { setMatConfirmedId(confirmed ? null : m.id); setMatStatus(confirmed ? null : m.status === "ok" ? "ok" : "low"); }} style={{ width: "100%", padding: "6px 0", borderRadius: "var(--r)", border: `1px solid ${confirmed ? "rgba(15,155,106,.4)" : "var(--border2)"}`, background: confirmed ? "rgba(15,155,106,.1)" : "var(--bg3)", color: confirmed ? "var(--green)" : "var(--text2)", fontSize: 11, fontWeight: confirmed ? 700 : 400, cursor: "pointer", transition: "all .12s" }}>
+                                                {confirmed ? "✓ Confirmed Available" : "Confirm Available"}
+                                            </button>
+                                            : <div style={{ textAlign: "center", padding: "6px 0", fontSize: 11, color: "var(--red)" }}>⊘ Out of stock</div>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Request new / extra material — same fields as Raw Material Inventory add form */}
+                        <div style={{ border: "1px solid var(--border2)", borderRadius: "var(--r2)", overflow: "hidden" }}>
+                            <div style={{ padding: "8px 14px", background: "var(--bg3)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700 }}>⊕ Request New / Extra Material</span>
+                                <span className="tiny" style={{ marginLeft: "auto" }}>Material not in stock or new variant needed</span>
+                            </div>
+                            <div style={{ padding: 14 }}>
+                                <div className="frow">
+                                    <div className="fg"><label className="fl">Material Name</label><input className="fi" placeholder="e.g. PA12 GF, PETG-CF" /></div>
+                                    <div className="fg"><label className="fl">Technology</label><select className="fsel" defaultValue={sel.tech}><option>FDM</option><option>SLA</option><option>SLS</option></select></div>
+                                    <div className="fg"><label className="fl">Type</label><input className="fi" placeholder="e.g. Engineering, Standard" /></div>
+                                </div>
+                                <div className="frow">
+                                    <div className="fg"><label className="fl">Finish</label><input className="fi" placeholder="e.g. Matte, Glossy, Silk" /></div>
+                                    <div className="fg"><label className="fl">Color</label><input type="color" className="fi" style={{ padding: "4px 8px", height: 38 }} defaultValue="#2563EB" /></div>
+                                    <div className="fg"><label className="fl">Qty Required (g)</label><input type="number" className="fi" placeholder="grams needed" /></div>
+                                </div>
+                                <div className="fg mb12"><label className="fl">Supplier / Notes</label><textarea className="fta" style={{ minHeight: 48 }} placeholder="Supplier, lead time, urgency, substitution notes…" /></div>
+                                <button className="btn btp bts" style={{ fontSize: 11 }} onClick={() => toast("Material request raised — pending procurement", "i")}>↑ Raise Material Request</button>
+                            </div>
+                        </div>
+                        {matStatus === "low" && <div className="astrip warn" style={{ marginTop: 12, marginBottom: 0 }}>⚠️ Confirmed material is low — verify quantity is sufficient before approving.</div>}
+                        {matStatus === "ok"  && <div className="astrip info" style={{ marginTop: 12, marginBottom: 0 }}>✓ Material confirmed available. Ready to proceed.</div>}
+                    </ReviewSection>
+                );
+            })()}
+
+            {/* ── TAB: SPARES ── */}
+            {reviewTab === "spares" && (
+                <ReviewSection num="3" title="Spare Parts & Consumables" status={tabStatus.spares}>
+                    {/* Requirements for this job — at the top */}
+                    <div style={{ background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", padding: 12, marginBottom: 16 }}>
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 8 }}>Spares Required for This Job</div>
+                        <div className="tiny mb10" style={{ color: "var(--text2)" }}>List the spare parts or consumables this specific job needs before starting production:</div>
+                        {[
+                            { tech: "FDM", items: ["Nozzle (0.4mm)", "PTFE Tube", "Build Plate Surface", "IPA (cleaning)", "Gloves"] },
+                            { tech: "SLA", items: ["Resin Tank (if near end-of-life)", "FEP Film", "IPA (wash)", "UV Cure lamp check", "Gloves", "Safety Glasses"] },
+                            { tech: "SLS", items: ["Powder scoop / spatula", "Depowdering brush", "Anti-static gloves", "Media blast media", "Dust masks"] },
+                        ].find(t => t.tech === sel.tech)?.items.map(item => (
+                            <div key={item} className="row mb6" style={{ gap: 8 }}>
+                                <div style={{ width: 14, height: 14, borderRadius: 3, border: "1px solid var(--border2)", background: "var(--bg2)", flexShrink: 0 }} />
+                                <span style={{ fontSize: 12 }}>{item}</span>
+                            </div>
+                        ))}
+                        <div className="fg mt8">
+                            <label className="fl">Additional requirements for this job</label>
+                            <textarea className="fta" style={{ minHeight: 40 }} placeholder="Any extra parts or consumables specific to this job…" />
+                        </div>
+                    </div>
+
+                    <div className="tiny mb10" style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)" }}>
+                        Check Inventory — Confirm Availability
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12, marginBottom: 16 }}>
+                        {SPARE_SEED.map(s => {
+                            const cat = SPARE_CATEGORIES.find(c => c.id === s.cat);
+                            const pct = Math.min((s.qty / Math.max(s.minStock * 2, 1)) * 100, 100);
+                            const barCol = s.status === "ok" ? "var(--green)" : s.status === "low" ? "var(--gold)" : "var(--red)";
+                            const confirmed = spareConfirmed[s.id];
+                            return (
+                                <div key={s.id} style={{ background: confirmed ? "rgba(15,155,106,.04)" : "var(--bg2)", border: `1.5px solid ${confirmed ? "rgba(15,155,106,.4)" : s.status === "critical" ? "rgba(220,38,38,.35)" : s.status === "low" ? "rgba(184,134,11,.3)" : "var(--border)"}`, borderRadius: "var(--r3)", overflow: "hidden", boxShadow: "var(--shadow)", display: "flex", flexDirection: "column" }}>
+                                    <div style={{ height: 80, background: confirmed ? "rgba(15,155,106,.08)" : "var(--bg3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, borderBottom: "1px solid var(--border)", position: "relative" }}>
+                                        {cat?.icon || "◇"}
+                                        <div style={{ position: "absolute", top: 6, right: 6 }}>
+                                            <span className={`b ${SPARE_STATUS_BADGE[s.status]}`} style={{ fontSize: 9 }}>{SPARE_STATUS_LABEL[s.status]}</span>
+                                        </div>
+                                        {confirmed && <div style={{ position: "absolute", top: 6, left: 6, width: 16, height: 16, borderRadius: "50%", background: "var(--green)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#fff", fontWeight: 700 }}>✓</div>}
+                                    </div>
+                                    <div style={{ padding: 10, flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                                        <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700 }}>{s.name}</div>
+                                        <div className="tiny" style={{ color: "var(--text2)", lineHeight: 1.4 }}>{s.desc}</div>
+                                        <div className="tiny" style={{ color: "var(--text3)" }}>{s.location}</div>
+                                        <div className="rowsb" style={{ marginTop: 4 }}>
+                                            <div>
+                                                <span style={{ fontFamily: "var(--fd)", fontSize: 15, fontWeight: 700, color: barCol }}>{s.qty}</span>
+                                                <span className="tiny" style={{ marginLeft: 4 }}>/ min {s.minStock}</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ background: "var(--bg4)", borderRadius: 2, height: 4, overflow: "hidden" }}>
+                                            <div style={{ width: `${pct}%`, background: barCol, height: 4, borderRadius: 2 }} />
+                                        </div>
+                                        <button onClick={() => setSpareConfirmed(p => ({ ...p, [s.id]: !p[s.id] }))} disabled={s.status === "critical"} style={{ marginTop: 6, padding: "5px 0", borderRadius: "var(--r)", border: `1px solid ${confirmed ? "rgba(15,155,106,.4)" : s.status === "critical" ? "rgba(220,38,38,.3)" : "var(--border2)"}`, background: confirmed ? "rgba(15,155,106,.1)" : s.status === "critical" ? "var(--rdim)" : "var(--bg3)", color: confirmed ? "var(--green)" : s.status === "critical" ? "var(--red)" : "var(--text2)", fontSize: 10, fontWeight: confirmed ? 700 : 400, cursor: s.status === "critical" ? "not-allowed" : "pointer", transition: "all .12s" }}>
+                                            {s.status === "critical" ? "⊘ Not Available" : confirmed ? "✓ Confirmed" : "Confirm Available"}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Summary strip */}
+                    {(() => {
+                        const n = Object.values(spareConfirmed).filter(Boolean).length;
+                        const crit = SPARE_SEED.filter(s => s.status === "critical").length;
+                        return <>
+                            {n > 0 && <div className="astrip info" style={{ marginBottom: 8 }}>✓ {n} of {SPARE_SEED.length} items confirmed available.</div>}
+                            {crit > 0 && <div className="astrip err" style={{ marginBottom: 8 }}>⛔ {crit} item(s) out of stock — raise a request below.</div>}
+                        </>;
+                    })()}
+
+                    {/* Request New Spare Part — same fields as Spares & Stores add form */}
+                    <div style={{ border: "1px solid var(--border2)", borderRadius: "var(--r2)", overflow: "hidden", marginTop: 4 }}>
+                        <div style={{ padding: "8px 14px", background: "var(--bg3)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700 }}>⊕ Request New / Missing Spare Part</span>
+                            <span className="tiny" style={{ marginLeft: "auto" }}>Part not in stock or additional quantity needed</span>
+                        </div>
+                        <div style={{ padding: 14 }}>
+                            <div className="frow">
+                                <div className="fg"><label className="fl">Part Name *</label><input className="fi" placeholder="e.g. Hotend Assembly, PTFE Tube" /></div>
+                                <div className="fg"><label className="fl">Category *</label><select className="fsel">{SPARE_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                            </div>
+                            <div className="frow">
+                                <div className="fg"><label className="fl">Quantity Needed</label><input className="fi" type="number" min={1} defaultValue={1} /></div>
+                                <div className="fg"><label className="fl">Location / Storage</label><input className="fi" placeholder="e.g. Cabinet 1, Shelf A-2" /></div>
+                            </div>
+                            <div className="fg mb12"><label className="fl">Description / Notes</label><textarea className="fta" style={{ minHeight: 48 }} placeholder="Part specs, urgency, supplier, substitution options…" value={spareNote} onChange={e => setSpareNote(e.target.value)} /></div>
+                            <button className="btn btp bts" style={{ fontSize: 11 }} onClick={() => toast("Spare part request raised — pending stores team", "i")}>↑ Raise Part Request</button>
+                        </div>
+                    </div>
+                </ReviewSection>
+            )}
+
+            {/* ── TAB: EXTRA COST ── */}
+            {reviewTab === "cost" && (
+                <ReviewSection num="4" title="Extra Cost Approval" status={tabStatus.cost}>
+                    <div className="tiny mb12" style={{ color: "var(--text2)" }}>If this job incurs costs beyond the standard department budget, log them here for approval.</div>
+                    <div className="row mb12" style={{ gap: 10 }}>
+                        <button onClick={() => setExtraCost(false)} style={{ padding: "8px 16px", border: `1.5px solid ${!extraCost ? "rgba(15,155,106,.4)" : "var(--border2)"}`, borderRadius: "var(--r2)", background: !extraCost ? "rgba(15,155,106,.07)" : "var(--bg2)", color: !extraCost ? "var(--green)" : "var(--text2)", fontSize: 12, cursor: "pointer", transition: "all .12s" }}>✓ No extra cost</button>
+                        <button onClick={() => setExtraCost(true)}  style={{ padding: "8px 16px", border: `1.5px solid ${extraCost  ? "rgba(184,134,11,.4)" : "var(--border2)"}`, borderRadius: "var(--r2)", background: extraCost  ? "var(--golddim)" : "var(--bg2)", color: extraCost  ? "var(--gold)" : "var(--text2)", fontSize: 12, cursor: "pointer", transition: "all .12s" }}>⚠ Extra cost required</button>
+                    </div>
+                    {extraCost && (
+                        <div>
+                            <div className="tiny mb8">Cost Line Items (AED)</div>
+                            {costItems.map((ci, i) => (
+                                <div key={i} className="frow mb8" style={{ alignItems: "center" }}>
+                                    <div className="fg"><input className="fi" placeholder="Description (e.g. Rush material order)" value={ci.desc} onChange={e => setCostItems(p => p.map((x, j) => j === i ? { ...x, desc: e.target.value } : x))} /></div>
+                                    <div style={{ width: 120 }}><input className="fi" placeholder="AED amount" type="number" value={ci.amount} onChange={e => setCostItems(p => p.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} /></div>
+                                    {costItems.length > 1 && <button className="btn btg bts" style={{ fontSize: 11, color: "var(--red)" }} onClick={() => setCostItems(p => p.filter((_, j) => j !== i))}>✕</button>}
+                                </div>
+                            ))}
+                            <button className="btn btg bts" style={{ fontSize: 11 }} onClick={() => setCostItems(p => [...p, { desc: "", amount: "" }])}>⊕ Add Line</button>
+                            <div className="sep" />
+                            <div className="rowsb">
+                                <span className="tiny">Total Extra Cost</span>
+                                <span style={{ fontFamily: "var(--fd)", fontSize: 16, fontWeight: 800, color: "var(--gold)" }}>AED {costItems.reduce((s, c) => s + (+c.amount || 0), 0).toLocaleString()}</span>
+                            </div>
+                        </div>
+                    )}
+                </ReviewSection>
+            )}
+
+            {/* ── TAB: POST-PROC & QC ── */}
+            {/* ── TAB: POST-PROCESSING ── */}
+            {reviewTab === "pp" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                    <ReviewSection num="5" title="Post-Processing Steps" status={Object.values(postProc).some(Boolean) ? "ok" : null}>
+                        <div className="tiny mb12" style={{ color: "var(--text2)" }}>
+                            Select the post-processing steps required for this job. Add instructions for the operator on each step. The operator checks each step done and can add comments.
+                        </div>
+                        {/* Step selector chips */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                            {[...(POST_PROCESS_OPTS[sel.tech] || []), ...customPostProc].map(opt => (
+                                <ChipToggle key={opt} label={opt} active={!!postProc[opt]}
+                                    onToggle={() => setPostProc(p => ({ ...p, [opt]: !p[opt] }))}
+                                    onRemove={customPostProc.includes(opt) ? () => removeCustomPostProc(opt) : null} />
+                            ))}
+                        </div>
+                    </ReviewSection>
+
+                    {/* Add custom — outside ReviewSection to avoid re-render focus loss */}
+                    <div style={{ display: "flex", gap: 6, padding: "0 0 16px" }}>
+                        <input className="fi" placeholder="Add custom post-processing step…" value={newPostProc}
+                            onChange={e => setNewPostProc(e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && addCustomPostProc()}
+                            style={{ fontSize: 11 }} />
+                        <button type="button" className="btn btp bts" onClick={addCustomPostProc} style={{ fontSize: 11, flexShrink: 0 }}>⊕ Add Step</button>
+                    </div>
+
+                    {/* Operator checklist — steps to do, with done toggle + AM instruction + operator comment */}
+                    {Object.keys(postProc).filter(k => postProc[k]).length > 0 && (
+                        <div>
+                            <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>
+                                Operator Checklist — {Object.values(ppDone).filter(Boolean).length} / {Object.keys(postProc).filter(k => postProc[k]).length} done
+                            </div>
+                            {Object.keys(postProc).filter(k => postProc[k]).map((step, i) => {
+                                const done = !!ppDone[step];
+                                return (
+                                    <div key={step} style={{ background: done ? "rgba(15,155,106,.04)" : "var(--bg2)", border: `1px solid ${done ? "rgba(15,155,106,.3)" : "var(--border)"}`, borderRadius: "var(--r2)", padding: "12px 14px", marginBottom: 8, transition: "all .15s" }}>
+                                        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                                            {/* Step number + done toggle */}
+                                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                                                <div style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--bg3)", border: "1px solid var(--border2)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--fm)", fontSize: 9, fontWeight: 700, color: "var(--text3)" }}>{i + 1}</div>
+                                                <div onClick={() => setPpDone(p => ({ ...p, [step]: !p[step] }))}
+                                                    style={{ width: 22, height: 22, borderRadius: 4, border: `2px solid ${done ? "var(--green)" : "var(--border2)"}`, background: done ? "var(--green)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .12s" }}>
+                                                    {done && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+                                                </div>
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700, color: done ? "var(--green)" : "var(--text)", marginBottom: 6 }}>{step}</div>
+                                                {/* AM instruction field */}
+                                                <div className="tiny mb4" style={{ color: "var(--text3)" }}>AM Instructions</div>
+                                                <input className="fi" style={{ fontSize: 11, marginBottom: 8 }}
+                                                    placeholder={`Instructions for operator on ${step}…`}
+                                                    value={ppInstructions[step] || ""}
+                                                    onChange={e => setPpInstructions(p => ({ ...p, [step]: e.target.value }))} />
+                                                {/* Operator comment field */}
+                                                <div className="tiny mb4" style={{ color: "var(--text3)" }}>Operator Comment</div>
+                                                <textarea className="fta" style={{ fontSize: 11, minHeight: 44, resize: "vertical" }}
+                                                    placeholder="Operator notes, observations, issues encountered…"
+                                                    value={ppComments[step] || ""}
+                                                    onChange={e => setPpComments(p => ({ ...p, [step]: e.target.value }))} />
+                                            </div>
+                                            <button type="button" onClick={() => setPostProc(p => ({ ...p, [step]: false }))}
+                                                style={{ background: "none", border: "none", color: "var(--text4)", fontSize: 16, cursor: "pointer", flexShrink: 0, lineHeight: 1, paddingTop: 2 }}>×</button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {/* Overall PP sign-off */}
+                            <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: 12, marginTop: 4 }}>
+                                <div className="tiny mb6" style={{ color: "var(--text3)" }}>Overall Post-Processing Notes</div>
+                                <textarea className="fta" style={{ fontSize: 11, minHeight: 52 }} placeholder="General notes or sign-off comments from post-processing team…" />
+                            </div>
+                        </div>
+                    )}
+                    {Object.keys(postProc).filter(k => postProc[k]).length === 0 && (
+                        <div className="astrip info">Select steps above to build the operator checklist.</div>
+                    )}
+                </div>
+            )}
+
+            {/* ── TAB: QC INSPECTION ── */}
+            {reviewTab === "qc" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                    <ReviewSection num="6" title="QC Inspection Checks" status={Object.values(qcChecks).some(Boolean) ? "ok" : null}>
+                        <div className="tiny mb12" style={{ color: "var(--text2)" }}>
+                            Select the QC checks required for this job. Add pass criteria for each check. The QC inspector checks each item and can add comments or flag failures.
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                            {[...(QC_CHECKS[sel.tech] || []), ...customQC].map(opt => (
+                                <ChipToggle key={opt} label={opt} active={!!qcChecks[opt]}
+                                    onToggle={() => setQcChecks(p => ({ ...p, [opt]: !p[opt] }))}
+                                    color="var(--gold)" dimColor="var(--golddim)"
+                                    onRemove={customQC.includes(opt) ? () => removeCustomQC(opt) : null} />
+                            ))}
+                        </div>
+                    </ReviewSection>
+
+                    {/* Add custom — outside ReviewSection */}
+                    <div style={{ display: "flex", gap: 6, padding: "0 0 16px" }}>
+                        <input className="fi" placeholder="Add custom QC check…" value={newQC}
+                            onChange={e => setNewQC(e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && addCustomQC()}
+                            style={{ fontSize: 11 }} />
+                        <button type="button" className="btn btp bts" onClick={addCustomQC} style={{ fontSize: 11, flexShrink: 0 }}>⊕ Add Check</button>
+                    </div>
+
+                    {/* QC Checklist */}
+                    {Object.keys(qcChecks).filter(k => qcChecks[k]).length > 0 && (
+                        <div>
+                            <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>
+                                QC Checklist — {Object.values(qcDone).filter(Boolean).length} / {Object.keys(qcChecks).filter(k => qcChecks[k]).length} checked
+                            </div>
+                            {Object.keys(qcChecks).filter(k => qcChecks[k]).map((check, i) => {
+                                const done = !!qcDone[check];
+                                return (
+                                    <div key={check} style={{ background: done ? "rgba(184,134,11,.04)" : "var(--bg2)", border: `1px solid ${done ? "rgba(184,134,11,.4)" : "var(--border)"}`, borderRadius: "var(--r2)", padding: "12px 14px", marginBottom: 8, transition: "all .15s" }}>
+                                        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                                                <div style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--bg3)", border: "1px solid var(--border2)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--fm)", fontSize: 9, fontWeight: 700, color: "var(--text3)" }}>{i + 1}</div>
+                                                <div onClick={() => setQcDone(p => ({ ...p, [check]: !p[check] }))}
+                                                    style={{ width: 22, height: 22, borderRadius: 4, border: `2px solid ${done ? "var(--gold)" : "var(--border2)"}`, background: done ? "var(--gold)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .12s" }}>
+                                                    {done && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+                                                </div>
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700, color: done ? "var(--gold)" : "var(--text)", marginBottom: 6 }}>{check}</div>
+                                                <div className="tiny mb4" style={{ color: "var(--text3)" }}>Pass Criteria / Instructions</div>
+                                                <input className="fi" style={{ fontSize: 11, marginBottom: 8 }}
+                                                    placeholder={`Pass criteria or measurement spec for ${check}…`}
+                                                    value={qcInstructions[check] || ""}
+                                                    onChange={e => setQcInstructions(p => ({ ...p, [check]: e.target.value }))} />
+                                                <div className="tiny mb4" style={{ color: "var(--text3)" }}>Inspector Comment / Result</div>
+                                                <textarea className="fta" style={{ fontSize: 11, minHeight: 44, resize: "vertical" }}
+                                                    placeholder="Inspector notes, measurements, pass/fail observations…"
+                                                    value={qcComments[check] || ""}
+                                                    onChange={e => setQcComments(p => ({ ...p, [check]: e.target.value }))} />
+                                            </div>
+                                            <button type="button" onClick={() => setQcChecks(p => ({ ...p, [check]: false }))}
+                                                style={{ background: "none", border: "none", color: "var(--text4)", fontSize: 16, cursor: "pointer", flexShrink: 0, lineHeight: 1, paddingTop: 2 }}>×</button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {/* QC sign-off */}
+                            <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: 12, marginTop: 4 }}>
+                                <div className="tiny mb6" style={{ color: "var(--text3)" }}>QC Sign-off Notes</div>
+                                <textarea className="fta" style={{ fontSize: 11, minHeight: 52 }} placeholder="Overall QC result, inspector sign-off, disposition of parts…" />
+                            </div>
+                        </div>
+                    )}
+                    {Object.keys(qcChecks).filter(k => qcChecks[k]).length === 0 && (
+                        <div className="astrip info">Select checks above to build the QC checklist.</div>
+                    )}
+                </div>
+            )}
+
+            {/* ── TAB: WORK ORDER ── */}
+            {reviewTab === "wo" && (
+                <ReviewSection num="7" title="Work Order Creation" status={tabStatus.wo}>
+                    <div className="tiny mb12" style={{ color: "var(--text2)" }}>Fields are auto-filled from the review. Adjust if needed, then approve to send to production.</div>
+
+                    {/* WO number — custom editable */}
+                    <div className="frow">
+                        <div className="fg">
+                            <label className="fl">Work Order Number *</label>
+                            <div className="row" style={{ gap: 0 }}>
+                                <div style={{ padding: "8px 12px", background: "var(--bg3)", border: "1px solid var(--border2)", borderRight: "none", borderRadius: "var(--r) 0 0 var(--r)", fontFamily: "var(--fm)", fontSize: 12, color: "var(--text2)", flexShrink: 0 }}>WO-</div>
+                                <input className="fi" style={{ borderRadius: "0 var(--r) var(--r) 0", fontFamily: "var(--fm)" }}
+                                    value={woCustomNum}
+                                    onChange={e => setWoCustomNum(e.target.value)}
+                                    placeholder={String(2060 + lcProjects.length)} />
+                            </div>
+                        </div>
+                        <div className="fg">
+                            <label className="fl">Operator</label>
+                            <select className="fsel" value={woOperator} onChange={e => setWoOperator(e.target.value)}>
+                                {["Marco R.", "Yuki T.", "Arjun S.", "Marie D.", "Alex R."].map(o => <option key={o}>{o}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Machine — auto from slot, editable */}
+                    <div className="frow">
+                        <div className="fg">
+                            <label className="fl">Assign Machine * <span className="tiny" style={{ color: "var(--accent)", fontWeight: 400 }}>{slotPrinter ? "· auto from Job Allotment" : "· select in Job Allotment first"}</span></label>
+                            <select className="fsel" value={woMachine || slotPrinter || ""} onChange={e => setWoMachine(e.target.value)}>
+                                <option value="">— Select machine —</option>
+                                {(printersByTech.length > 0 ? printersByTech : SCHEDULE_JOBS).map(p => <option key={p.id} value={p.printer}>{p.printer} ({p.tech})</option>)}
+                            </select>
+                        </div>
+                        <div className="fg">
+                            <label className="fl">Scheduled Start <span className="tiny" style={{ color: "var(--accent)", fontWeight: 400 }}>{slotStartTime ? "· auto from Job Allotment" : ""}</span></label>
+                            <input className="fi" style={{ fontFamily: "var(--fm)" }}
+                                value={woSched || slotStartTime || ""}
+                                onChange={e => setWoSched(e.target.value)}
+                                placeholder="e.g. Today 14:15" />
+                        </div>
+                    </div>
+
+                    {/* Post-proc + QC read-only summary */}
+                    <div className="frow">
+                        <div className="fg">
+                            <label className="fl">Post-Processing</label>
+                            <div className="fi" style={{ minHeight: 32, background: "var(--bg3)", color: "var(--text2)", fontSize: 11 }}>
+                                {Object.keys(postProc).filter(k => postProc[k]).join(", ") || "None selected"}
+                            </div>
+                        </div>
+                        <div className="fg">
+                            <label className="fl">QC Checks</label>
+                            <div className="fi" style={{ minHeight: 32, background: "var(--bg3)", color: "var(--text2)", fontSize: 11 }}>
+                                {Object.keys(qcChecks).filter(k => qcChecks[k]).join(", ") || "None selected"}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Notes — auto-populated from request note, editable */}
+                    <div className="fg mb14">
+                        <label className="fl">Work Order Notes <span className="tiny" style={{ color: "var(--accent)", fontWeight: 400 }}>{sel.requestNote ? "· pre-filled from request" : ""}</span></label>
+                        <textarea className="fta" style={{ minHeight: 70 }}
+                            placeholder="Special instructions, material handling notes…"
+                            value={woNotes || sel.requestNote || ""}
+                            onChange={e => setWoNotes(e.target.value)} />
+                    </div>
+
+                    {/* WO preview strip */}
+                    <div style={{ background: "var(--adim)", border: "1px solid rgba(37,99,235,.15)", borderRadius: "var(--r2)", padding: "10px 14px", marginBottom: 14 }}>
+                        <div className="tiny" style={{ color: "var(--accent)", fontFamily: "var(--fm)", marginBottom: 6 }}>WORK ORDER PREVIEW</div>
+                        <div className="row" style={{ gap: 14, flexWrap: "wrap" }}>
+                            <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>WO-{woCustomNum || (2060 + lcProjects.length)}</span>
+                            <span className="tiny">{sel.name}</span>
+                            <TB tech={sel.tech} />
+                            <span className="tiny">{sel.qty} pcs</span>
+                            {(woMachine || slotPrinter) && <span className="tiny">→ {woMachine || slotPrinter}</span>}
+                            {(woSched || slotStartTime) && <span className="tiny" style={{ color: "var(--green)", fontFamily: "var(--fm)" }}>⏱ {woSched || slotStartTime}</span>}
+                        </div>
+                    </div>
+
+                    {!slotPrinter && !woMachine && <div className="astrip warn" style={{ marginBottom: 8 }}>⚠️ Go to ① Job Allotment to assign a printer before approving.</div>}
+                    <div className="rowsb">
+                        <button className="btn btg bts" onClick={reject} style={{ color: "var(--red)", borderColor: "rgba(220,38,38,.3)" }}>✕ Return to Requester</button>
+                        <button className="btn btp" onClick={approve} disabled={!slotPrinter || !matStatus || !(woMachine || slotPrinter)}>
+                            ✓ Approve &amp; Create Work Order
+                        </button>
+                    </div>
+                </ReviewSection>
+            )}
+        </div>
+    );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SPARES & STORES
+══════════════════════════════════════════════════════════════════ */
+const SPARE_CATEGORIES = [
