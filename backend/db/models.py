@@ -1,136 +1,107 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Enum, Text, JSON, Numeric
-from sqlalchemy.orm import relationship
+This error means the file being deployed (/app/db/models.py) still has the old import.
+
+Because of how your Dockerfile is structured, the file that actually runs on Render is backend/db/models.py, not backend/app/db/models.py. You likely modified the wrong file!
+
+🛠️ How to Fix It:
+Open the correct file:
+Go to backend/db/models.py (Notice: it’s directly inside backend/db/, not inside backend/app/).
+
+Replace its entire content with this self-contained code:
+(Copy/Paste this into backend/db/models.py)
+
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, JSON, Numeric
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
-import enum
 import uuid
-from db.base import Base, TenantMixin
 
-# --- Enums ---
-class TechType(str, enum.Enum):
-    FDM = "FDM"
-    SLA = "SLA"
-    SLS = "SLS"
+Base = declarative_base()
 
-class ProjectPriority(str, enum.Enum):
-    normal = "normal"
-    high = "high"
-    urgent = "urgent"
-
-class MachineStatus(str, enum.Enum):
-    idle = "idle"
-    running = "running"
-    error = "error"
-    maintenance = "maintenance"
-    offline = "offline"
-
-# --- Models ---
+class TenantMixin:
+    tenant_id = Column(String, nullable=False, index=True)
 
 class Project(Base, TenantMixin):
     __tablename__ = "projects"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    custom_id = Column(String(50), unique=True, nullable=False) # e.g., PRJ-011
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    custom_id = Column(String(50), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     dept = Column(String(50))
-    owner_id = Column(String(36), ForeignKey("user_profiles.id"))
-    priority = Column(Enum(ProjectPriority), default=ProjectPriority.normal)
+    owner_id = Column(String(50))
+    priority = Column(String(50), default="normal")
     status = Column(String(50), default="active")
     budget = Column(Numeric(10, 2))
-    spent = Column(Numeric(10, 2), default=0)
     due_date = Column(DateTime)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # Relationships
-    work_orders = relationship("WorkOrder", back_populates="project")
-
 class WorkOrder(Base, TenantMixin):
     __tablename__ = "work_orders"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    custom_id = Column(String(50), unique=True, nullable=False) # e.g., WO-2041
-    project_id = Column(String(36), ForeignKey("projects.id"))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    custom_id = Column(String(50), unique=True, nullable=False)
+    project_id = Column(String, ForeignKey("projects.id"))
     part_name = Column(String(255), nullable=False)
-    tech = Column(Enum(TechType))
+    tech = Column(String(50))
     material = Column(String(100))
     qty = Column(Integer, default=1)
     status = Column(String(50), default="planned")
     machine_id = Column(String(50))
-    operator_id = Column(String(36), ForeignKey("user_profiles.id"))
     due_date = Column(DateTime)
     request_note = Column(Text)
-    extra_info = Column(JSON) # Stores AM Review data
+    extra_info = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # Relationships
-    project = relationship("Project", back_populates="work_orders")
-
 class PrintRequest(Base, TenantMixin):
     __tablename__ = "print_requests"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     custom_id = Column(String(50), unique=True, nullable=False)
-    project_id = Column(String(36), ForeignKey("projects.id"))
+    project_id = Column(String, ForeignKey("projects.id"))
     title = Column(String(255), nullable=False)
-    requestor_id = Column(String(36), ForeignKey("user_profiles.id"))
-    tech = Column(Enum(TechType))
+    requestor_id = Column(String(50))
+    tech = Column(String(50))
     material = Column(String(100))
     qty = Column(Integer)
-    priority = Column(Enum(ProjectPriority), default=ProjectPriority.normal)
+    priority = Column(String(50), default="normal")
     status = Column(String(50), default="pending")
     notes = Column(Text)
     image_url = Column(String(500))
     stage = Column(String(50), default="submitted")
-    groups_data = Column(JSON) # Material groups
-    history_log = Column(JSON) # Lifecycle history
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Machine(Base, TenantMixin):
     __tablename__ = "machines"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     custom_id = Column(String(50), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
-    model = Column(String(255))
-    tech = Column(Enum(TechType))
-    work_center_id = Column(String(36), ForeignKey("work_centers.id"))
-    status = Column(Enum(MachineStatus), default=MachineStatus.idle)
+    tech = Column(String(50))
+    status = Column(String(50), default="idle")
     current_job = Column(String(50))
     progress_pct = Column(Float, default=0.0)
-    est_remaining = Column(String(50))
     oee = Column(Float, default=0.0)
-    availability = Column(Float, default=0.0)
-    performance = Column(Float, default=0.0)
-    quality = Column(Float, default=0.0)
-    last_maintenance = Column(DateTime)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class MaterialInventory(Base, TenantMixin):
     __tablename__ = "material_inventory"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     custom_id = Column(String(50), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
     brand = Column(String(100))
     type = Column(String(100))
-    finish = Column(String(50))
     color = Column(String(50))
     color_hex = Column(String(10))
     unit = Column(String(20), default="spools")
     quantity = Column(Numeric(10, 2), default=0)
     min_quantity = Column(Numeric(10, 2), default=5)
+    status = Column(String(20), default="ok")
     location = Column(String(100))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class NCRReport(Base, TenantMixin):
     __tablename__ = "ncr_reports"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     custom_id = Column(String(50), unique=True, nullable=False)
-    related_wo_id = Column(String(36), ForeignKey("work_orders.id"))
-    reported_by = Column(String(36), ForeignKey("user_profiles.id"))
+    related_wo_id = Column(String, ForeignKey("work_orders.id"))
+    reported_by = Column(String(50))
     description = Column(Text, nullable=False)
     root_cause_analysis = Column(JSON)
     corrective_action = Column(Text)
