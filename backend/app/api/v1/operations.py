@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 
-from core.database import get_db
+from app.core.database import get_db
 from db.models import Project, WorkOrder, Machine, MaterialInventory, NCRReport
 from schemas.schemas import (
     ProjectCreate, ProjectOut, 
