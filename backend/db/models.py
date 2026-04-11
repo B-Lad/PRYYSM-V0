@@ -1,13 +1,3 @@
-This error means the file being deployed (/app/db/models.py) still has the old import.
-
-Because of how your Dockerfile is structured, the file that actually runs on Render is backend/db/models.py, not backend/app/db/models.py. You likely modified the wrong file!
-
-🛠️ How to Fix It:
-Open the correct file:
-Go to backend/db/models.py (Notice: it’s directly inside backend/db/, not inside backend/app/).
-
-Replace its entire content with this self-contained code:
-(Copy/Paste this into backend/db/models.py)
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, JSON, Numeric
 from sqlalchemy.orm import declarative_base
