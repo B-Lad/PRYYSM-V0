@@ -11,17 +11,12 @@ from app.api.v1.permissions import router as permissions_router
 app = FastAPI(title="Pryysm MES API v3.0.0")
 
 # --- THIS IS THE FIX FOR THE CORS ERROR ---
-origins = [
-    "http://localhost:5173",      # Local Frontend
-    "http://localhost:3000",
-    "https://pryysm-v0.onrender.com", # Backend itself
-    # Add your Vercel URL here later when deployed
-]
+origins = ["*"]  # Allow all websites (including Vercel)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=False, # Must be False if origins is "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
