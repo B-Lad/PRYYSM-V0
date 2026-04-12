@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { LC_SEED, LIFECYCLE_STAGES, MATS_BY_TECH, MACHINES_BASE, lcPct, lcIdx } from '../data/seed.jsx';
 import { TB, SB, DB, Modal, Tabs, Prog, AStrip, LiveBadge } from '../components/atoms.jsx';
 import { DEPT_CLS, DEPT_C } from '../data/constants.js';
 import { MAT_CATALOG, BLANK_MAT, BLANK_GROUP } from '../data/matCatalog.js';
 import { api } from '../services/api.js';
+import { ImageUpload } from '../components/ImageUpload.jsx';
 
 export function ColorPicker({ cat, mat, gi, mi, setMat }) {
     const colorOpts = (cat.colors[`${mat.matType}|${mat.finish}`] || []);
@@ -33,7 +35,7 @@ export function ColorPicker({ cat, mat, gi, mi, setMat }) {
 const WIZ_LABELS = ["General Info", "Items & Tech", "Files & Notes", "Review"];
 export function NewRequestWizard({ onClose, onCreate }) {
     const [step, setStep] = useState(0);
-    const [f, setF] = useState({ name: "", dept: "", projCode: "", owner: "", priority: "normal", due: "", description: "", tech: "FDM", estHrs: 0, estMin: 0, groups: [BLANK_GROUP()], notes: "", imageUrl: "" });
+    const [f, setF] = useState({ name: "", dept: "", projCode: "", owner: "", priority: "normal", due: "", description: "", tech: "FDM", estHrs: 0, estMin: 0, groups: [BLANK_GROUP()], notes: "", imageUrl: "", modelName: "" });
     const set = (k, v) => setF(p => ({ ...p, [k]: v }));
     const canNext = [f.name.trim() && f.owner.trim() && f.due, true, true, true][step];
 
@@ -288,8 +290,24 @@ export function NewRequestWizard({ onClose, onCreate }) {
             {step === 2 && (
                 <div>
                     <div className="fg mb12"><label className="fl">Print Notes / Special Requirements</label><textarea className="fta" style={{ minHeight: 100 }} placeholder="Tolerances, surface finish, orientation, support strategy..." value={f.notes} onChange={e => set("notes", e.target.value)}></textarea></div>
-                    <div style={{ border: "2px dashed var(--border2)", borderRadius: "var(--r2)", padding: "24px 20px", textAlign: "center", color: "var(--text3)", fontSize: 12, cursor: "pointer", transition: "all .15s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--adim)"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border2)"; e.currentTarget.style.background = "transparent"; }}>
-                        <div style={{ fontSize: 28, marginBottom: 6 }}>📁</div>Drop .STL / .STEP / .3MF here<div className="tiny mt4">Max 100 MB per file</div>
+
+                    <div className="card mb12" style={{ textAlign: "center", padding: 20, boxShadow: "none", border: "1px solid var(--border)" }}>
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>3D Model Files</div>
+                        <label style={{ border: "2px dashed var(--border2)", borderRadius: "var(--r2)", padding: "24px 20px", textAlign: "center", color: "var(--text3)", fontSize: 12, cursor: "pointer", display: "block", transition: "all .15s" }}>
+                            <div style={{ fontSize: 28, marginBottom: 6 }}>📁</div>
+                            {f.modelName ? <span style={{ color: "var(--green)" }}>✓ {f.modelName}</span> : <span>Click to upload .STL / .STEP / .3MF</span>}
+                            <input type="file" accept=".stl,.step,.stp,.3mf" style={{ display: "none" }} onChange={e => {
+                                if (e.target.files[0]) set("modelName", e.target.files[0].name);
+                            }} />
+                        </label>
+                    </div>
+
+                    <div className="card" style={{ textAlign: "center", padding: 20, boxShadow: "none", border: "1px solid var(--border)" }}>
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Reference Image</div>
+                        <div style={{ display: "flex", justifyContent: "center" }}>
+                            <ImageUpload onUpload={(url) => setF(prev => ({ ...prev, imageUrl: url }))} />
+                        </div>
+                        {f.imageUrl && <div className="tiny mt8" style={{ color: "var(--green)" }}>✓ Image successfully linked</div>}
                     </div>
                 </div>
             )}
@@ -302,6 +320,8 @@ export function NewRequestWizard({ onClose, onCreate }) {
                                 <div key={k}><div className="tiny mb4">{k.toUpperCase()}</div><div style={{ fontSize: 12, fontWeight: 500 }}>{v || "—"}</div></div>
                             ))}
                         </div>
+                        {f.modelName && <><div className="sep" /><div className="tiny mb4">3D MODEL FILE</div><div style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>📁 {f.modelName}</div></>}
+                        {f.imageUrl && <><div className="sep" /><div className="tiny mb4">REFERENCE IMAGE</div><img src={f.imageUrl} alt="Reference" style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: "var(--r2)", border: "1px solid var(--border)" }} /></>}
                         {f.notes && <><div className="sep" /><div className="tiny mb4">PRINT NOTES</div><div className="dim small">{f.notes}</div></>}
                     </div>
                     <div style={{ background: "var(--adim)", border: "1px solid rgba(45,212,191,.2)", borderRadius: "var(--r2)", padding: 12, fontSize: 12 }}>

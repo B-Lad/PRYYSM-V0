@@ -44,4 +44,9 @@ export const api = {
     // Quality / NCR
     getNCRs: () => fetchApi('/operations/quality/ncr'),
     createNCR: (data) => fetchApi('/operations/quality/ncr', { method: 'POST', body: JSON.stringify(data) }),
+
+    // Users & Admin
+    getUsers: () => fetchApi('/auth/users'),
+    createUser: (data) => fetchApi('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+    updateUser: (id, data) => fetchApi(`/auth/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import CSS from './styles.js';
 import { NAV } from './data/nav.js';
 import { useLive } from './hooks/useLive.js';
+import { useRealtimeNotifications } from './hooks/useNotifications.js';
 import { api } from './services/api.js';
 import { TB, SB } from './components/atoms.jsx';
 import { Overview } from './modules/Overview.jsx';
@@ -39,6 +40,11 @@ export default function App() {
     const [section, setSection] = useState("overview");
     const [open, setOpen] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+    // --- ENABLE REALTIME NOTIFICATIONS ---
+    useRealtimeNotifications();
+    // -------------------------------------
+
     const [lcProjects, setLcProjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toasts, setToasts] = useState([]);

@@ -141,3 +141,7 @@ class UserOut(BaseModel):
     full_name: Optional[str] = None
     role: str
     is_active: bool = True
+
+class UserUpdate(BaseModel):
+    role: str
+    is_active: bool
