@@ -1,9 +1,3 @@
-This error is happening because your backend has CORS (Cross-Origin Resource Sharing) security turned on by default, blocking requests from your local computer.
-
-We need to tell FastAPI to allow your frontend to talk to it.
-
-🛠️ Step 1: Update backend/app/main.py
-Open backend/app/main.py and replace the content with this. It adds the “Allow all” policy for now so you can develop easily.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
