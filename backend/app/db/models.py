@@ -3,7 +3,7 @@ from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 import uuid
 
-# Define Base here so we don't need to import it
+# --- DEFINE BASE HERE TO AVOID IMPORT ERRORS ---
 Base = declarative_base()
 
 class TenantMixin:
