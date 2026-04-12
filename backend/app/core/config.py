@@ -5,7 +5,7 @@ from typing import Optional
 class Settings(BaseSettings):
     APP_NAME: str = "Pryysm MES v3.0"
     DATABASE_URL: str = (
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/pryysm_db"
+        "postgresql://postgres:postgres@localhost:5432/pryysm_db"
     )
     SECRET_KEY: str = "dev-secret-change-in-prod"
     ALGORITHM: str = "HS256"

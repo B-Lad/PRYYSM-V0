@@ -113,3 +113,31 @@ class NCRBase(BaseModel):
     description: str
     status: str = "open"
     created_at: datetime
+
+# ==============================================================================
+# AUTHENTICATION & USER SCHEMAS
+# ==============================================================================
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class UserCreate(BaseModel):
+    email: str
+    full_name: str
+    password: str
+    role: str = "operator"
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    role: str
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    email: str
+    full_name: Optional[str] = None
+    role: str
+    is_active: bool = True
