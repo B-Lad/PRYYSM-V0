@@ -1,7 +1,9 @@
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+from uuid import UUID
 
 # --- Enums ---
 class TechType(str, Enum):
@@ -15,63 +17,60 @@ class Priority(str, Enum):
     urgent = "urgent"
 
 # --- Project Schemas ---
-class ProjectBase(BaseModel):
+class ProjectCreate(BaseModel):
     name: str
     dept: Optional[str] = None
     priority: Priority = Priority.normal
     budget: Optional[float] = None
     due_date: Optional[str] = None
 
-class ProjectCreate(ProjectBase):
-    pass
-
-class ProjectOut(ProjectBase):
-    id: str
+class ProjectOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID  # CHANGED from str
     custom_id: str
+    name: str
+    dept: Optional[str]
+    priority: Optional[str]
     status: str = "active"
     created_at: datetime
     updated_at: Optional[datetime] = None
-
-    class Config:
-        orm_mode = True
 
 # --- Work Order Schemas ---
 class WOCreate(BaseModel):
     project_id: str
     part_name: str
-    tech: Optional[TechType] = None
+    tech: Optional[str] = None
     material: Optional[str] = None
     qty: int = 1
     due_date: Optional[str] = None
 
 class WOOut(BaseModel):
-    id: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID  # CHANGED from str
     custom_id: str
     project_id: str
     part_name: str
-    tech: Optional[str] = None
-    material: Optional[str] = None
+    tech: Optional[str]
+    material: Optional[str]
     qty: int
     status: str = "planned"
-    machine_id: Optional[str] = None
+    machine_id: Optional[str]
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 # --- Machine Schemas ---
 class MachineOut(BaseModel):
-    id: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID  # CHANGED from str
     custom_id: str
     name: str
-    tech: Optional[str] = None
+    tech: Optional[str]
     status: str = "idle"
-    current_job: Optional[str] = None
+    current_job: Optional[str]
     progress_pct: float = 0.0
     oee: float = 0.0
-
-    class Config:
-        orm_mode = True
 
 # --- Inventory Schemas ---
 class MaterialInventoryCreate(BaseModel):
@@ -84,33 +83,33 @@ class MaterialInventoryCreate(BaseModel):
     location: Optional[str] = None
 
 class MaterialInventoryOut(BaseModel):
-    id: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID  # CHANGED from str
     custom_id: str
     name: str
-    brand: Optional[str] = None
-    type: Optional[str] = None
-    color: Optional[str] = None
-    color_hex: Optional[str] = None
+    brand: Optional[str]
+    type: Optional[str]
+    color: Optional[str]
+    color_hex: Optional[str]
     unit: str = "spools"
     quantity: float
     min_quantity: float
-    location: Optional[str] = None
-
-    class Config:
-        orm_mode = True
+    location: Optional[str]
 
 # --- NCR Schemas ---
 class NCRCreate(BaseModel):
     related_wo_id: Optional[str] = None
     description: str
-    root_cause_analysis: Optional[Dict[str, Any]] = None
+    root_cause_analysis: Optional[dict] = None
     corrective_action: Optional[str] = None
     cost_impact: float = 0.0
 
 class NCRBase(BaseModel):
-    id: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID  # CHANGED from str
     custom_id: str
     description: str
     status: str = "open"
     created_at: datetime
-    class Config: orm_mode = True
