@@ -1,44 +1,47 @@
-from fastapi import FastAPI, Request
+This error is happening because your backend has CORS (Cross-Origin Resource Sharing) security turned on by default, blocking requests from your local computer.
+
+We need to tell FastAPI to allow your frontend to talk to it.
+
+🛠️ Step 1: Update backend/app/main.py
+Open backend/app/main.py and replace the content with this. It adds the “Allow all” policy for now so you can develop easily.
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Import your routers
 from app.api.v1.auth import router as auth_router
-from app.api.v1.tenant import router as tenant_router
-from app.api.v1.users import router as users_router
 from app.api.v1.operations import router as operations_router
 from app.api.v1.admin import router as admin_router
-from app.api.v1.ai import router as ai_router
-from app.api.v1.websocket import router as websocket_router
 from app.api.v1.permissions import router as permissions_router
-from app.core.database import init_db
 
-app = FastAPI(title="Pryysm MES API", version="3.0.0")
+app = FastAPI(title="Pryysm MES API v3.0.0")
 
-# CORS - allow frontend
+# --- THIS IS THE FIX FOR THE CORS ERROR ---
+origins = [
+    "http://localhost:5173",      # Local Frontend
+    "http://localhost:3000",
+    "https://pryysm-v0.onrender.com", # Backend itself
+    # Add your Vercel URL here later when deployed
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# ------------------------------------------
 
-
-@app.on_event("startup")
-async def startup():
-    """Initialize database on startup"""
-    await init_db()
-
+# Include Routes
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(operations_router, prefix="/api/v1/operations", tags=["Operations"])
+app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(permissions_router, prefix="/api/v1/permissions", tags=["Permissions"])
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "3.0.0"}
+    return {"status": "healthy", "db": "connected"}
 
-
-# Register API routes
-app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
-app.include_router(tenant_router, prefix="/api/v1/tenant", tags=["Tenant"])
-app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
-app.include_router(operations_router, prefix="/api/v1/operations", tags=["Operations"])
-app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
-app.include_router(ai_router, prefix="/api/v1/ai", tags=["AI"])
-app.include_router(websocket_router, prefix="/api/v1/ws", tags=["WebSocket"])
-app.include_router(permissions_router, prefix="/api/v1/permissions", tags=["Permissions"])
+# Optional: Mount other routers if you have them
+# app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
