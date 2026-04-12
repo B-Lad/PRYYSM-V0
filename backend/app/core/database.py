@@ -1,20 +1,20 @@
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+# 1. Fix the URL: Remove '+asyncpg' because we are switching to standard sync mode
+db_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
 
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+# 2. Create standard engine
+engine = create_engine(db_url, pool_pre_ping=True)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+Base = declarative_base()
 
-async def get_db() -> AsyncSession:
-    async with async_session() as session:
-        yield session
-
-
-async def init_db():
-    """Create all tables on startup"""
-    async with engine.begin() as conn:
-        # Import all models so they're registered with Base.metadata
-        from app.db import models  # noqa
-        from app.db.base import Base
-        await conn.run_sync(Base.metadata.create_all)
+# 3. Standard Dependency (Yields a Session, not an AsyncSession)
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
