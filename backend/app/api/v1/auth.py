@@ -44,27 +44,33 @@ def login(req: UserLogin, db: Session = Depends(get_db)):
         "access_token": access_token,
         "token_type": "bearer",
         "role": user.role,
-        "tenant_id": user.tenant_id,
+        "tenant_id": user.tenant_id or "",
     }
 
 
 @router.post("/register", response_model=UserOut)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user_data.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    try:
+        db_user = db.query(User).filter(User.email == user_data.email).first()
+        if db_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
 
-    new_user = User(
-        email=user_data.email,
-        full_name=user_data.full_name,
-        hashed_password=get_password_hash(user_data.password),
-        role=user_data.role,
-        tenant_id="00000000-0000-0000-0000-000000000001",
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
+        new_user = User(
+            email=user_data.email,
+            full_name=user_data.full_name,
+            hashed_password=get_password_hash(user_data.password),
+            role=user_data.role,
+            tenant_id="00000000-0000-0000-0000-000000000001",
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/me", response_model=UserOut)
