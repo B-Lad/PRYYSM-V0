@@ -39,8 +39,7 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db)):
             id=tenant_id,
             name=data.name,
             slug=data.slug,
-            max_users=data.max_users,
-            max_machines=data.max_machines,
+            settings={"max_users": data.max_users, "max_machines": data.max_machines},
         )
         db.add(tenant)
         db.commit()
@@ -71,17 +70,33 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/tenants", response_model=List[TenantOut])
+@router.get("/tenants")
 def list_tenants(db: Session = Depends(get_db)):
-    return db.query(Tenant).all()
+    tenants = db.query(Tenant).all()
+    return [
+        {
+            "id": t.id,
+            "name": t.name,
+            "slug": t.slug,
+            "max_users": (t.settings or {}).get("max_users", 5),
+            "max_machines": (t.settings or {}).get("max_machines", 2),
+        }
+        for t in tenants
+    ]
 
 
-@router.get("/tenant/{tenant_id}", response_model=TenantOut)
+@router.get("/tenant/{tenant_id}")
 def get_tenant(tenant_id: str, db: Session = Depends(get_db)):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    return tenant
+    return {
+        "id": tenant.id,
+        "name": tenant.name,
+        "slug": tenant.slug,
+        "max_users": (tenant.settings or {}).get("max_users", 5),
+        "max_machines": (tenant.settings or {}).get("max_machines", 2),
+    }
 
 
 @router.get("/tenant/{tenant_id}/users", response_model=List)
