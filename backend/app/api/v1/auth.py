@@ -38,14 +38,14 @@ def login(req: UserLogin, db: Session = Depends(get_db)):
                 "sub": str(user.id),
                 "role": user.role,
                 "email": user.email,
-                "tenant_id": user.tenant_id or "",
+                "tenant_id": str(user.tenant_id) if user.tenant_id else "",
             }
         )
         return {
             "access_token": access_token,
             "token_type": "bearer",
             "role": user.role,
-            "tenant_id": user.tenant_id or "",
+            "tenant_id": str(user.tenant_id) if user.tenant_id else "",
         }
     except HTTPException:
         raise
