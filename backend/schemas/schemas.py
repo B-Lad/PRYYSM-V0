@@ -1,9 +1,9 @@
-
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 from uuid import UUID
+
 
 # --- Enums ---
 class TechType(str, Enum):
@@ -11,10 +11,12 @@ class TechType(str, Enum):
     SLA = "SLA"
     SLS = "SLS"
 
+
 class Priority(str, Enum):
     normal = "normal"
     high = "high"
     urgent = "urgent"
+
 
 # --- Project Schemas ---
 class ProjectCreate(BaseModel):
@@ -24,9 +26,10 @@ class ProjectCreate(BaseModel):
     budget: Optional[float] = None
     due_date: Optional[str] = None
 
+
 class ProjectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID  # CHANGED from str
     custom_id: str
     name: str
@@ -35,6 +38,7 @@ class ProjectOut(BaseModel):
     status: str = "active"
     created_at: datetime
     updated_at: Optional[datetime] = None
+
 
 # --- Work Order Schemas ---
 class WOCreate(BaseModel):
@@ -45,9 +49,10 @@ class WOCreate(BaseModel):
     qty: int = 1
     due_date: Optional[str] = None
 
+
 class WOOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID  # CHANGED from str
     custom_id: str
     project_id: str
@@ -59,10 +64,11 @@ class WOOut(BaseModel):
     machine_id: Optional[str]
     created_at: datetime
 
+
 # --- Machine Schemas ---
 class MachineOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID  # CHANGED from str
     custom_id: str
     name: str
@@ -71,6 +77,7 @@ class MachineOut(BaseModel):
     current_job: Optional[str]
     progress_pct: float = 0.0
     oee: float = 0.0
+
 
 # --- Inventory Schemas ---
 class MaterialInventoryCreate(BaseModel):
@@ -82,9 +89,10 @@ class MaterialInventoryCreate(BaseModel):
     min_quantity: float = 5.0
     location: Optional[str] = None
 
+
 class MaterialInventoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID  # CHANGED from str
     custom_id: str
     name: str
@@ -97,6 +105,7 @@ class MaterialInventoryOut(BaseModel):
     min_quantity: float
     location: Optional[str]
 
+
 # --- NCR Schemas ---
 class NCRCreate(BaseModel):
     related_wo_id: Optional[str] = None
@@ -105,22 +114,26 @@ class NCRCreate(BaseModel):
     corrective_action: Optional[str] = None
     cost_impact: float = 0.0
 
+
 class NCRBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID  # CHANGED from str
     custom_id: str
     description: str
     status: str = "open"
     created_at: datetime
 
+
 # ==============================================================================
 # AUTHENTICATION & USER SCHEMAS
 # ==============================================================================
 
+
 class UserLogin(BaseModel):
     email: str
     password: str
+
 
 class UserCreate(BaseModel):
     email: str
@@ -128,20 +141,40 @@ class UserCreate(BaseModel):
     password: str
     role: str = "operator"
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
     role: str
 
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     email: str
     full_name: Optional[str] = None
     role: str
     is_active: bool = True
 
+
 class UserUpdate(BaseModel):
     role: str
     is_active: bool
+
+
+class TenantCreate(BaseModel):
+    name: str
+    slug: str
+    contact_email: Optional[str] = None
+    admin_email: str
+    admin_password: str
+    max_users: int = 5
+    max_machines: int = 2
+
+
+class TenantOut(BaseModel):
+    id: str
+    name: str
+    slug: str
+    created_at: Optional[datetime] = None

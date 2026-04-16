@@ -49,4 +49,8 @@ export const api = {
     getUsers: () => fetchApi('/auth/users'),
     createUser: (data) => fetchApi('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
     updateUser: (id, data) => fetchApi(`/auth/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+    // Tenants (Super Admin)
+    createTenant: (data) => fetchApi('/admin/tenants', { method: 'POST', body: JSON.stringify(data) }),
+    getTenants: () => fetchApi('/admin/tenants'),
 };

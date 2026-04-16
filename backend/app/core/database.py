@@ -11,6 +11,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+# 3. Create tables
+Base.metadata.create_all(bind=engine)
+
+
 # 3. Standard Dependency (Yields a Session, not an AsyncSession)
 def get_db():
     db = SessionLocal()

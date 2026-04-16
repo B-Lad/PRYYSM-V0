@@ -1,12 +1,36 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Numeric
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Text,
+    JSON,
+    Numeric,
+)
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
 import uuid
 
 Base = declarative_base()
 
+
 class TenantMixin:
     tenant_id = Column(String, nullable=False, index=True)
+
+
+class Tenant(Base):
+    __tablename__ = "tenants"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
 
 class Project(Base, TenantMixin):
     __tablename__ = "projects"
@@ -21,7 +45,10 @@ class Project(Base, TenantMixin):
     budget = Column(Numeric(10, 2))
     due_date = Column(DateTime)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
 
 class WorkOrder(Base, TenantMixin):
     __tablename__ = "work_orders"
@@ -38,7 +65,10 @@ class WorkOrder(Base, TenantMixin):
     request_note = Column(Text)
     extra_info = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
 
 class PrintRequest(Base, TenantMixin):
     __tablename__ = "print_requests"
@@ -57,6 +87,7 @@ class PrintRequest(Base, TenantMixin):
     stage = Column(String(50), default="submitted")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
 class Machine(Base, TenantMixin):
     __tablename__ = "machines"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -68,6 +99,7 @@ class Machine(Base, TenantMixin):
     progress_pct = Column(Float, default=0.0)
     oee = Column(Float, default=0.0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class MaterialInventory(Base, TenantMixin):
     __tablename__ = "material_inventory"
@@ -85,6 +117,7 @@ class MaterialInventory(Base, TenantMixin):
     location = Column(String(100))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
 class NCRReport(Base, TenantMixin):
     __tablename__ = "ncr_reports"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -99,13 +132,15 @@ class NCRReport(Base, TenantMixin):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     resolved_at = Column(DateTime(timezone=True))
 
+
 # ==============================================================================
 # USER MODEL (This is the part causing the error if imports are missing)
 # ==============================================================================
 
+
 class User(Base, TenantMixin):
     __tablename__ = "users"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(100), unique=True, index=True, nullable=False)
     full_name = Column(String(100))
