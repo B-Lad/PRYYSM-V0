@@ -13,6 +13,9 @@ export function Admin() {
     const [showCreateUser, setShowCreateUser] = useState(false);
     const [showCreateCompany, setShowCreateCompany] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+    const [selectedCompany, setSelectedCompany] = useState(null);
+    const [companyMembers, setCompanyMembers] = useState([]);
+    const [showManageCompany, setShowManageCompany] = useState(false);
 
     const [newUser, setNewUser] = useState({ email: "", full_name: "", password: "", role: "operator" });
     const [newCompany, setNewCompany] = useState({ name: "", slug: "", contact_email: "", admin_email: "", admin_password: "", max_users: 5, max_machines: 2 });
@@ -62,10 +65,13 @@ export function Admin() {
         }
     }
 
-    async function handleUpdateRole(userId, newRole, isActive) {
+    async function handleUpdateRole(userId, newRole, isActive, targetTenantId = null) {
         try {
             await api.updateUser(userId, { role: newRole, is_active: isActive });
-            if (tenantId) {
+            if (targetTenantId) {
+                const updated = await api.getTenantUsers(targetTenantId);
+                setCompanyMembers(updated);
+            } else if (tenantId) {
                 const updated = await api.getTenantUsers(tenantId);
                 setUsers(updated);
             } else {
@@ -90,6 +96,49 @@ export function Admin() {
             alert("Company created successfully!");
         } catch (err) {
             alert("Failed to create company: " + err.message);
+        }
+    }
+
+    async function handleManageCompany(company) {
+        setSelectedCompany(company);
+        try {
+            const members = await api.getTenantUsers(company.id);
+            setCompanyMembers(members);
+            setShowManageCompany(true);
+        } catch (err) {
+            alert("Failed to load company members: " + err.message);
+        }
+    }
+
+    async function handleAddMemberToCompany() {
+        if (!newUser.email || !newUser.full_name || !newUser.password) {
+            alert("Please fill in all fields");
+            return;
+        }
+        if (selectedCompany && companyMembers.length >= (selectedCompany.max_users || 5)) {
+            alert(`This company allows only ${selectedCompany.max_users || 5} users.`);
+            return;
+        }
+        try {
+            await api.createUser({ ...newUser, tenant_id: selectedCompany.id });
+            const members = await api.getTenantUsers(selectedCompany.id);
+            setCompanyMembers(members);
+            setNewUser({ email: "", full_name: "", password: "", role: "operator" });
+            alert("Member added successfully!");
+        } catch (err) {
+            alert("Failed to add member: " + err.message);
+        }
+    }
+
+    async function handleRemoveMemberFromCompany(userId) {
+        if (!confirm("Remove this member?")) return;
+        try {
+            await api.updateUser(userId, { role: "operator", is_active: false });
+            const members = await api.getTenantUsers(selectedCompany.id);
+            setCompanyMembers(members);
+            alert("Member removed.");
+        } catch (err) {
+            alert("Failed to remove member.");
         }
     }
 
@@ -120,7 +169,7 @@ export function Admin() {
                                         <td style={{padding: "10px 12px"}}>{c.max_users || 5}</td>
                                         <td style={{padding: "10px 12px"}}>{c.max_machines || 2}</td>
                                         <td style={{padding: "10px 12px", textAlign: "right"}}>
-                                            <button className="btn btd bts" style={{fontSize:10}}>Manage</button>
+                                            <button className="btn btd bts" style={{fontSize:10}} onClick={() => handleManageCompany(c)}>Manage</button>
                                         </td>
                                     </tr>
                                 ))}
@@ -227,8 +276,68 @@ export function Admin() {
                 </div>
             )}
 
+            {showDeleteConfirm && (
+                <Modal title="Remove Member" onClose={() => setShowDeleteConfirm(null)} footer={<><button className="btn btg bts" onClick={()=>setShowDeleteConfirm(null)}>Cancel</button><button className="btn btd bts" onClick={()=>handleDeleteUser(showDeleteConfirm)}>Remove</button></>}>
+                    <p>Are you sure you want to remove this member? They will be deactivated but not deleted.</p>
+                </Modal>
+            )}
+
+            {showManageCompany && selectedCompany && (
+                <Modal title={`Manage: ${selectedCompany.name}`} onClose={() => setShowManageCompany(false)}>
+                    <div style={{marginBottom: 16}}>
+                        <div style={{display: "flex", gap: 16, marginBottom: 16}}>
+                            <div style={{padding: 12, background: "var(--bg2)", borderRadius: 8, flex: 1}}>
+                                <div style={{fontSize: 11, color: "var(--text3)"}}>Slug</div>
+                                <div style={{fontWeight: "bold"}}>{selectedCompany.slug}</div>
+                            </div>
+                            <div style={{padding: 12, background: "var(--bg2)", borderRadius: 8, flex: 1}}>
+                                <div style={{fontSize: 11, color: "var(--text3)"}}>Max Users</div>
+                                <div style={{fontWeight: "bold"}}>{selectedCompany.max_users || 5}</div>
+                            </div>
+                            <div style={{padding: 12, background: "var(--bg2)", borderRadius: 8, flex: 1}}>
+                                <div style={{fontSize: 11, color: "var(--text3)"}}>Max Machines</div>
+                                <div style={{fontWeight: "bold"}}>{selectedCompany.max_machines || 2}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="card">
+                        <div className="ch">
+                            <span className="ct">👥 Members ({companyMembers.length}{selectedCompany ? ` / ${selectedCompany.max_users || 5}` : ''})</span>
+                            {(!selectedCompany || companyMembers.length < (selectedCompany.max_users || 5)) && (
+                                <button className="btn btp bts" onClick={() => setShowCreateUser(true)}>+ Add Member</button>
+                            )}
+                        </div>
+                        <div className="tw">
+                            <table>
+                                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                    {companyMembers.map(u => (
+                                        <tr key={u.id} style={{borderBottom: "1px solid var(--border)"}}>
+                                            <td style={{padding: "10px 12px"}}>{u.full_name || "—"}</td>
+                                            <td style={{padding: "10px 12px"}}>{u.email}</td>
+                                            <td style={{padding: "10px 12px"}}>
+                                                <select className="fsel" style={{fontSize:11}} value={u.role} onChange={(e) => handleUpdateRole(u.id, e.target.value, u.is_active, selectedCompany.id)}>
+                                                    <option value="operator">Operator</option>
+                                                    <option value="manager">Manager</option>
+                                                    <option value="qa">QA</option>
+                                                    <option value="admin">Admin</option>
+                                                </select>
+                                            </td>
+                                            <td style={{padding: "10px 12px"}}><span className={`b ${u.is_active ? "brun" : "bidle"}`}>{u.is_active ? "Active" : "Inactive"}</span></td>
+                                            <td style={{padding: "10px 12px", textAlign: "right"}}>
+                                                <button className="btn btd bts" style={{fontSize:10}} onClick={() => handleRemoveMemberFromCompany(u.id)}>Remove</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
             {showCreateUser && (
-                <Modal title="Add Member" onClose={() => setShowCreateUser(false)} footer={<><button className="btn btg bts" onClick={()=>setShowCreateUser(false)}>Cancel</button><button className="btn btp bts" onClick={handleCreateUser}>Add Member</button></>}>
+                <Modal title={selectedCompany ? "Add Member to Company" : "Add Member"} onClose={() => setShowCreateUser(false)} footer={<><button className="btn btg bts" onClick={()=>setShowCreateUser(false)}>Cancel</button><button className="btn btp bts" onClick={selectedCompany ? handleAddMemberToCompany : handleCreateUser}>Add Member</button></>}>
                     <div className="fg mb8"><label className="fl">Name</label><input className="fi" value={newUser.full_name} onChange={e=>setNewUser({...newUser, full_name:e.target.value})} placeholder="Full name"/></div>
                     <div className="fg mb8"><label className="fl">Email</label><input className="fi" type="email" value={newUser.email} onChange={e=>setNewUser({...newUser, email:e.target.value})} placeholder="email@company.com"/></div>
                     <div className="fg mb8"><label className="fl">Password</label><input className="fi" type="password" value={newUser.password} onChange={e=>setNewUser({...newUser, password:e.target.value})} placeholder="Temporary password"/></div>
@@ -237,27 +346,9 @@ export function Admin() {
                             <option value="operator">Operator</option>
                             <option value="manager">Manager</option>
                             <option value="qa">QA</option>
+                            <option value="admin">Admin</option>
                         </select>
                     </div>
-                </Modal>
-            )}
-
-            {showCreateCompany && (
-                <Modal title="New Company" onClose={() => setShowCreateCompany(false)} footer={<><button className="btn btg bts" onClick={()=>setShowCreateCompany(false)}>Cancel</button><button className="btn btp bts" onClick={handleCreateCompany}>Create Company</button></>}>
-                    <div className="fg mb6"><label className="fl">Company Name</label><input className="fi" value={newCompany.name} onChange={e=>setNewCompany({...newCompany, name:e.target.value})} placeholder="Acme Corp"/></div>
-                    <div className="fg mb6"><label className="fl">Slug (URL-safe)</label><input className="fi" value={newCompany.slug} onChange={e=>setNewCompany({...newCompany, slug:e.target.value})} placeholder="acme-corp"/></div>
-                    <div className="fg mb6"><label className="fl">Admin Email</label><input className="fi" type="email" value={newCompany.admin_email} onChange={e=>setNewCompany({...newCompany, admin_email:e.target.value})} placeholder="admin@acme.com"/></div>
-                    <div className="fg mb6"><label className="fl">Admin Password</label><input className="fi" type="password" value={newCompany.admin_password} onChange={e=>setNewCompany({...newCompany, admin_password:e.target.value})} placeholder="Create password"/></div>
-                    <div className="frow">
-                        <div className="fg"><label className="fl">Max Users</label><input className="fi" type="number" value={newCompany.max_users} onChange={e=>setNewCompany({...newCompany, max_users:parseInt(e.target.value)||5})}/></div>
-                        <div className="fg"><label className="fl">Max Machines</label><input className="fi" type="number" value={newCompany.max_machines} onChange={e=>setNewCompany({...newCompany, max_machines:parseInt(e.target.value)||2})}/></div>
-                    </div>
-                </Modal>
-            )}
-
-            {showDeleteConfirm && (
-                <Modal title="Remove Member" onClose={() => setShowDeleteConfirm(null)} footer={<><button className="btn btg bts" onClick={()=>setShowDeleteConfirm(null)}>Cancel</button><button className="btn btd bts" onClick={()=>handleDeleteUser(showDeleteConfirm)}>Remove</button></>}>
-                    <p>Are you sure you want to remove this member? They will be deactivated but not deleted.</p>
                 </Modal>
             )}
         </div>
