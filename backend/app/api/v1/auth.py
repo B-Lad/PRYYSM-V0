@@ -23,29 +23,34 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 def login(req: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == req.email).first()
-    if not user or not verify_password(req.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-        )
+    try:
+        user = db.query(User).filter(User.email == req.email).first()
+        if not user or not verify_password(req.password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+            )
 
-    access_token = create_access_token(
-        data={
-            "sub": str(user.id),
+        access_token = create_access_token(
+            data={
+                "sub": str(user.id),
+                "role": user.role,
+                "email": user.email,
+                "tenant_id": user.tenant_id or "",
+            }
+        )
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
             "role": user.role,
-            "email": user.email,
-            "tenant_id": user.tenant_id,
+            "tenant_id": user.tenant_id or "",
         }
-    )
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "role": user.role,
-        "tenant_id": user.tenant_id or "",
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
 
 
 @router.post("/register", response_model=UserOut)
