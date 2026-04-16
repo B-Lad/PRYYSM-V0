@@ -35,7 +35,13 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db)):
             )
 
         tenant_id = str(uuid.uuid4())
-        tenant = Tenant(id=tenant_id, name=data.name, slug=data.slug)
+        tenant = Tenant(
+            id=tenant_id,
+            name=data.name,
+            slug=data.slug,
+            max_users=data.max_users,
+            max_machines=data.max_machines,
+        )
         db.add(tenant)
         db.commit()
 
@@ -51,7 +57,13 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db)):
         db.add(admin_user)
         db.commit()
 
-        return {"id": tenant_id, "name": data.name, "slug": data.slug}
+        return {
+            "id": tenant_id,
+            "name": data.name,
+            "slug": data.slug,
+            "max_users": data.max_users,
+            "max_machines": data.max_machines,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -62,6 +74,19 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db)):
 @router.get("/tenants", response_model=List[TenantOut])
 def list_tenants(db: Session = Depends(get_db)):
     return db.query(Tenant).all()
+
+
+@router.get("/tenant/{tenant_id}", response_model=TenantOut)
+def get_tenant(tenant_id: str, db: Session = Depends(get_db)):
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return tenant
+
+
+@router.get("/tenant/{tenant_id}/users", response_model=List)
+def get_tenant_users(tenant_id: str, db: Session = Depends(get_db)):
+    return db.query(User).filter(User.tenant_id == tenant_id).all()
 
 
 @router.get("/machines")

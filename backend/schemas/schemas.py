@@ -146,6 +146,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     role: str
+    tenant_id: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -177,4 +178,6 @@ class TenantOut(BaseModel):
     id: str
     name: str
     slug: str
+    max_users: int = 5
+    max_machines: int = 2
     created_at: Optional[datetime] = None

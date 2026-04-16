@@ -14,10 +14,10 @@ export function Login({ onLogin }) {
 
         try {
             const data = await api.login({ email, password });
-            // Save token and user info to browser
             localStorage.setItem("access_token", data.access_token);
             localStorage.setItem("user_role", data.role || "admin");
-            onLogin(); // Tell App we are in
+            localStorage.setItem("tenant_id", data.tenant_id || "");
+            onLogin();
         } catch (err) {
             setError("Invalid email or password. Please try again.");
             console.error(err);

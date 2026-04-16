@@ -53,4 +53,6 @@ export const api = {
     // Tenants (Super Admin)
     createTenant: (data) => fetchApi('/admin/tenants', { method: 'POST', body: JSON.stringify(data) }),
     getTenants: () => fetchApi('/admin/tenants'),
+    getTenant: (id) => fetchApi(`/admin/tenant/${id}`),
+    getTenantUsers: (id) => fetchApi(`/admin/tenant/${id}/users`),
 };
