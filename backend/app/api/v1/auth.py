@@ -23,7 +23,7 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-@router.post("/login")
+@router.post("/login", response_model=Token)
 def login(req: UserLogin, db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == req.email).first()
@@ -50,7 +50,7 @@ def login(req: UserLogin, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        return {"error": str(e), "type": type(e).__name__}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/register", response_model=UserOut)
