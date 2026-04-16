@@ -25,7 +25,7 @@ def get_current_user_id(token: str = None):
     return payload
 
 
-@router.post("/tenants", response_model=TenantOut)
+@router.post("/tenants")
 def create_tenant(data: TenantCreate, db: Session = Depends(get_db)):
     try:
         existing = db.query(Tenant).filter(Tenant.slug == data.slug).first()
@@ -34,14 +34,10 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db)):
                 status_code=400, detail="A company with this slug already exists"
             )
 
-        tenant = Tenant(
-            id=str(uuid.uuid4()),
-            name=data.name,
-            slug=data.slug,
-        )
+        tenant_id = str(uuid.uuid4())
+        tenant = Tenant(id=tenant_id, name=data.name, slug=data.slug)
         db.add(tenant)
         db.commit()
-        db.refresh(tenant)
 
         admin_user = User(
             id=str(uuid.uuid4()),
@@ -49,13 +45,13 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db)):
             full_name="Admin",
             hashed_password=get_password_hash(data.admin_password),
             role="admin",
-            tenant_id=tenant.id,
+            tenant_id=tenant_id,
             is_active=True,
         )
         db.add(admin_user)
         db.commit()
 
-        return tenant
+        return {"id": tenant_id, "name": data.name, "slug": data.slug}
     except HTTPException:
         raise
     except Exception as e:
