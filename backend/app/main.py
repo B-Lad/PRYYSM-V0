@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import settings
 
 # Import your routers
 from app.api.v1.auth import router as auth_router
@@ -9,22 +10,14 @@ from app.api.v1.permissions import router as permissions_router
 
 app = FastAPI(title="Pryysm MES API v3.0.0")
 
-# --- THIS IS THE FIX FOR THE CORS ERROR ---
-origins = [
-    "https://pryysm-v0.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://localhost:8000",
-]  # Allow specific origins
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=False,  # Must be False if origins is "*"
+    allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=settings.CORS_ORIGIN_REGEX,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# ------------------------------------------
 
 # Include Routes
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])

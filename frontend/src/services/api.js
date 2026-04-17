@@ -13,10 +13,15 @@ async function fetchApi(endpoint, options = {}) {
     const token = localStorage.getItem('access_token');
     if (token) config.headers['Authorization'] = `Bearer ${token}`;
 
-    const response = await fetch(url, config);
+    let response;
+    try {
+        response = await fetch(url, config);
+    } catch (err) {
+        throw new Error(`Network error reaching API at ${API_URL}. Check Vercel env, Render URL, and backend CORS.`);
+    }
     if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.detail || `API Error: ${response.statusText}`);
+        throw new Error(errorBody.detail || `API Error: ${response.status} ${response.statusText}`);
     }
     return response.json();
 }
