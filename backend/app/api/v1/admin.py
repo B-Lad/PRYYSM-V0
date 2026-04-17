@@ -10,7 +10,13 @@ from app.core.access import (
 from app.core.database import get_db
 from app.core.dependencies import CurrentTenant
 from db.models import Tenant, User
-from schemas.schemas import AccessOptionsOut, TenantCreate, TenantOut, TenantUpdate, UserOut
+from schemas.schemas import (
+    AccessOptionsOut,
+    TenantCreate,
+    TenantOut,
+    TenantUpdate,
+    UserOut,
+)
 from passlib.context import CryptContext
 import uuid
 
@@ -116,11 +122,14 @@ def create_tenant(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/tenants", response_model=list[TenantOut])
+@router.get("/tenants")
 def list_tenants(ctx: CurrentTenant, db: Session = Depends(get_db)):
     ensure_super_admin(ctx)
-    tenants = db.query(Tenant).order_by(Tenant.created_at.desc()).all()
-    return [serialize_tenant(tenant) for tenant in tenants]
+    try:
+        tenants = db.query(Tenant).order_by(Tenant.created_at.desc()).all()
+        return [serialize_tenant(tenant) for tenant in tenants]
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
 
 
 @router.get("/tenant/{tenant_id}", response_model=TenantOut)
@@ -147,7 +156,9 @@ def update_tenant(
     if data.slug and data.slug != tenant.slug:
         existing = db.query(Tenant).filter(Tenant.slug == data.slug).first()
         if existing:
-            raise HTTPException(status_code=400, detail="A company with this slug already exists")
+            raise HTTPException(
+                status_code=400, detail="A company with this slug already exists"
+            )
         tenant.slug = data.slug
 
     if data.name:
