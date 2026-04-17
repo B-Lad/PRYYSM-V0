@@ -17,9 +17,10 @@ export function Login({ onLogin }) {
             localStorage.setItem("access_token", data.access_token);
             localStorage.setItem("user_role", data.role || "admin");
             localStorage.setItem("tenant_id", data.tenant_id || "");
+            localStorage.setItem("user_id", data.user_id || "");
             onLogin();
         } catch (err) {
-            setError("Invalid email or password. Please try again.");
+            setError(err.message || "Invalid email or password. Please try again.");
             console.error(err);
         } finally {
             setLoading(false);

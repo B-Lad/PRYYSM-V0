@@ -24,6 +24,8 @@ async function fetchApi(endpoint, options = {}) {
 export const api = {
     // Auth
     login: (data) => fetchApi('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+    getMe: () => fetchApi('/auth/me'),
+    changePassword: (data) => fetchApi('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
 
     // Projects
     getProjects: () => fetchApi('/operations/projects'),
@@ -54,5 +56,10 @@ export const api = {
     createTenant: (data) => fetchApi('/admin/tenants', { method: 'POST', body: JSON.stringify(data) }),
     getTenants: () => fetchApi('/admin/tenants'),
     getTenant: (id) => fetchApi(`/admin/tenant/${id}`),
+    updateTenant: (id, data) => fetchApi(`/admin/tenant/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     getTenantUsers: (id) => fetchApi(`/admin/tenant/${id}/users`),
+    getCompanyProfile: () => fetchApi('/admin/company/profile'),
+    getCompanyMembers: () => fetchApi('/admin/company/members'),
+    getAccessOptions: () => fetchApi('/admin/access-options'),
+    getMyPermissions: () => fetchApi('/permissions/my-permissions'),
 };

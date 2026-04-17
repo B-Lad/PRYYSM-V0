@@ -37,11 +37,11 @@ export function AStrip({ type, text, time }) {
     const cls = type === "err" || type === "error" ? "err" : type === "warn" || type === "warning" ? "warn" : "info";
     return <div className={`astrip ${cls}`}><span style={{ flexShrink: 0, fontSize: 14 }}>{cls === "err" ? "⛔" : cls === "warn" ? "⚠️" : "ℹ️"}</span><div><div style={{ fontSize: 12 }}>{text}</div>{time && <div className="tiny mt4">{time}</div>}</div></div>;
 }
-export function Modal({ title, onClose, children, footer, zIndex }) {
-    return <div className="mback" style={zIndex ? { zIndex } : {}} onClick={onClose}><div className="mod" onClick={e => e.stopPropagation()}><div className="mh"><span className="mtitle">{title}</span><button className="mclose" onClick={onClose}>×</button></div><div className="mbody">{children}</div>{footer && <div className="mfoot">{footer}</div>}</div></div>;
+export function Modal({ title, onClose, children, footer, zIndex, wide }) {
+    return <div className="mback" style={zIndex ? { zIndex } : {}} onClick={onClose}><div className={`mod ${wide ? 'wide' : ''}`} onClick={e => e.stopPropagation()}><div className="mh"><span className="mtitle">{title}</span><button type="button" className="mclose" onClick={onClose}>×</button></div><div className="mbody">{children}</div>{footer && <div className="mfoot">{footer}</div>}</div></div>;
 }
 export function Tabs({ tabs, active, onChange }) {
-    return <div className="tabs">{tabs.map(t => <button key={t.id} className={`tab ${active === t.id ? "act" : ""}`} onClick={() => onChange(t.id)}>{t.label}</button>)}</div>;
+    return <div className="tabs">{tabs.map(t => <button type="button" key={t.id} className={`tab ${active === t.id ? "act" : ""}`} onClick={() => onChange(t.id)}>{t.label}</button>)}</div>;
 }
 export function LiveBadge() {
     return <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--green)", fontFamily: "var(--fm)" }}><span className="pd g" />Live</div>;
@@ -51,4 +51,3 @@ export function BudgetBar({ spent, budget, color }) {
     const c = pct >= 90 ? "var(--red)" : pct >= 70 ? "var(--yellow)" : color || "var(--green)";
     return <div><div className="budget-bar"><div className="budget-fill" style={{ width: `${Math.min(pct, 100)}%`, background: c }} /></div><div className="rowsb mt4"><span className="tiny">{pct}% of budget used</span><span className="tiny" style={{ color: c }}>AED {spent.toLocaleString()} / {budget.toLocaleString()}</span></div></div>;
 }
-

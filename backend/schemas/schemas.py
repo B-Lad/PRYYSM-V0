@@ -140,6 +140,8 @@ class UserCreate(BaseModel):
     full_name: str
     password: str
     role: str = "operator"
+    tenant_id: Optional[str] = None
+    allowed_tabs: List[str] = []
 
 
 class Token(BaseModel):
@@ -147,6 +149,7 @@ class Token(BaseModel):
     token_type: str
     role: str
     tenant_id: Optional[str] = None
+    user_id: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -157,11 +160,19 @@ class UserOut(BaseModel):
     full_name: Optional[str] = None
     role: str
     is_active: bool = True
+    tenant_id: Optional[str] = None
+    allowed_tabs: List[str] = []
 
 
 class UserUpdate(BaseModel):
     role: str
     is_active: bool
+    allowed_tabs: Optional[List[str]] = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class TenantCreate(BaseModel):
@@ -178,6 +189,33 @@ class TenantOut(BaseModel):
     id: str
     name: str
     slug: str
+    contact_email: Optional[str] = None
     max_users: int = 5
     max_machines: int = 2
     created_at: Optional[datetime] = None
+
+
+class TenantUpdate(BaseModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    contact_email: Optional[str] = None
+    max_users: Optional[int] = None
+    max_machines: Optional[int] = None
+
+
+class SessionOut(BaseModel):
+    id: str
+    email: str
+    full_name: Optional[str] = None
+    role: str
+    tenant_id: Optional[str] = None
+    is_active: bool = True
+    allowed_tabs: List[str] = []
+    tenant_name: Optional[str] = None
+    max_users: Optional[int] = None
+    max_machines: Optional[int] = None
+
+
+class AccessOptionsOut(BaseModel):
+    all_tabs: List[str]
+    assignable_tabs: List[str]
