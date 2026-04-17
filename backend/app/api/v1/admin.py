@@ -53,16 +53,29 @@ def serialize_tenant(tenant: Tenant):
 
 
 def serialize_member(user: User, tenant: Tenant):
-    settings = normalize_tenant_settings(tenant.settings)
-    return {
-        "id": user.id,
-        "email": user.email,
-        "full_name": user.full_name,
-        "role": user.role,
-        "is_active": user.is_active,
-        "tenant_id": tenant.id,
-        "allowed_tabs": get_user_tabs(settings, user.id, user.role),
-    }
+    try:
+        settings = normalize_tenant_settings(tenant.settings or {})
+        allowed_tabs = get_user_tabs(settings, user.id, user.role)
+        return {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "is_active": user.is_active,
+            "tenant_id": tenant.id,
+            "allowed_tabs": allowed_tabs,
+        }
+    except Exception as e:
+        # Fallback if there's any issue with settings/tabs
+        return {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "is_active": user.is_active,
+            "tenant_id": tenant.id,
+            "allowed_tabs": ["overview"],  # Default fallback
+        }
 
 
 @router.post("/tenants", response_model=TenantOut)
