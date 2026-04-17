@@ -40,7 +40,7 @@ def ensure_company_admin_or_super_admin(ctx: CurrentTenant):
 
 
 def serialize_tenant(tenant: Tenant):
-    settings = normalize_tenant_settings(tenant.settings)
+    settings = normalize_tenant_settings(tenant.settings or {})
     return {
         "id": tenant.id,
         "name": tenant.name,
@@ -48,7 +48,7 @@ def serialize_tenant(tenant: Tenant):
         "contact_email": settings.get("contact_email", ""),
         "max_users": settings.get("max_users", 5),
         "max_machines": settings.get("max_machines", 2),
-        "created_at": tenant.created_at,
+        "created_at": tenant.created_at.isoformat() if tenant.created_at else None,
     }
 
 
