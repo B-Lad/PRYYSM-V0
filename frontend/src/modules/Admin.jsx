@@ -162,11 +162,55 @@ export function Admin({ session, onSessionRefresh }) {
         setShowMemberModal(true);
     }
 
+    async function handleResetCompanyPassword(company) {
+        if (!confirm(`Reset password for ${company.name} admin? A new password will be generated.`)) return;
+
+        try {
+            const result = await api.resetCompanyPassword(company.id);
+            alert(`Password reset successful! New password: ${result.new_password}\n\nPlease save this password securely.`);
+        } catch (err) {
+            alert("Failed to reset password: " + err.message);
+        }
+    }
+
     async function handleCreateCompany() {
         if (!companyForm.name || !companyForm.slug) {
             alert("Please fill in the company name and slug.");
             return;
         }
+
+        try {
+            if (editingCompany) {
+                await api.updateTenant(editingCompany.id, {
+                    name: companyForm.name,
+                    slug: companyForm.slug,
+                    contact_email: companyForm.contact_email,
+                    max_users: Number(companyForm.max_users),
+                    max_machines: Number(companyForm.max_machines),
+                });
+            } else {
+                if (!companyForm.admin_email || !companyForm.admin_password) {
+                    alert("Please add the company admin email and password.");
+                    return;
+                }
+                await api.createTenant({
+                    ...companyForm,
+                    max_users: Number(companyForm.max_users),
+                    max_machines: Number(companyForm.max_machines),
+                });
+            }
+            setShowCompanyModal(false);
+            setEditingCompany(null);
+            setCompanyForm(EMPTY_COMPANY);
+            await loadData();
+            if (selectedCompany) {
+                const refreshed = await api.getTenant(selectedCompany.id);
+                setSelectedCompany(refreshed);
+            }
+        } catch (err) {
+            alert("Failed to save company: " + err.message);
+        }
+    }
 
         try {
             if (editingCompany) {
@@ -308,24 +352,30 @@ export function Admin({ session, onSessionRefresh }) {
                         <button type="button" className="btn btp bts" onClick={() => openCreateCompanyModal()}>+ New Company</button>
                     </div>
                     <div className="tw">
-                        <table>
-                            <thead><tr><th>Company</th><th>Slug</th><th>Contact</th><th>Users</th><th>Printers</th><th>Actions</th></tr></thead>
-                            <tbody>
-                                {companies.map(company => (
-                                    <tr key={company.id}>
-                                        <td>{company.name}</td>
-                                        <td>{company.slug}</td>
-                                        <td>{company.contact_email || "—"}</td>
-                                        <td>{company.max_users}</td>
-                                        <td>{company.max_machines}</td>
+                        {companies.length === 0 ? (
+                            <p style={{ textAlign: "center", padding: 20, color: "var(--text3)" }}>No companies found</p>
+                        ) : (
+                            <table>
+                                <thead><tr><th>Company</th><th>Slug</th><th>Contact</th><th>Users</th><th>Printers</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                    {companies
+                                        .sort((a, b) => a.name.localeCompare(b.name))
+                                        .map(company => (
+                                            <tr key={company.id}>
+                                                <td>{company.name}</td>
+                                                <td>{company.slug}</td>
+                                                <td>{company.contact_email || "—"}</td>
+                                                <td>{company.max_users}</td>
+                                                <td>{company.max_machines}</td>
                                         <td style={{ textAlign: "right" }}>
                                             <button type="button" className="btn btg bts" onClick={() => openCreateCompanyModal(company)}>Edit</button>
-                                            <button type="button" className="btn btd bts" style={{ marginLeft: 8 }} onClick={() => handleManageCompany(company)}>Manage</button>
+                                            <button type="button" className="btn btd bts" style={{ marginLeft: 8 }} onClick={() => handleManageCompany(company)}>Access Control</button>
                                         </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 </div>
             )}
@@ -427,6 +477,13 @@ export function Admin({ session, onSessionRefresh }) {
                     <div className="fg mb8"><label className="fl">Company Name</label><input className="fi" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} /></div>
                     <div className="fg mb8"><label className="fl">Slug</label><input className="fi" value={companyForm.slug} onChange={e => setCompanyForm({ ...companyForm, slug: e.target.value })} /></div>
                     <div className="fg mb8"><label className="fl">Contact Email</label><input className="fi" type="email" value={companyForm.contact_email} onChange={e => setCompanyForm({ ...companyForm, contact_email: e.target.value })} /></div>
+                    {editingCompany && (
+                        <div className="fg mb8">
+                            <label className="fl">Admin Password Reset</label>
+                            <button type="button" className="btn btd bts" onClick={() => handleResetCompanyPassword(editingCompany)} style={{ marginRight: 8 }}>Reset Admin Password</button>
+                            <span className="tiny">This will generate a new password for the company admin</span>
+                        </div>
+                    )}
                     {!editingCompany && (
                         <>
                             <div className="fg mb8"><label className="fl">Company Admin Email</label><input className="fi" type="email" value={companyForm.admin_email} onChange={e => setCompanyForm({ ...companyForm, admin_email: e.target.value })} /></div>

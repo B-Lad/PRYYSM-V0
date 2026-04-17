@@ -174,6 +174,34 @@ def get_tenant(tenant_id: str, ctx: CurrentTenant, db: Session = Depends(get_db)
     return serialize_tenant(tenant)
 
 
+@router.post("/tenant/{tenant_id}/reset-password")
+def reset_company_password(
+    tenant_id: str, ctx: CurrentTenant, db: Session = Depends(get_db)
+):
+    ensure_super_admin(ctx)
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Find the admin user for this tenant
+    admin_user = (
+        db.query(User).filter(User.tenant_id == tenant_id, User.role == "admin").first()
+    )
+
+    if not admin_user:
+        raise HTTPException(
+            status_code=404, detail="No admin user found for this company"
+        )
+
+    # Generate new password
+    new_password = f"Admin{tenant_id[:8].upper()}{str(uuid.uuid4())[:4]}"
+    admin_user.hashed_password = get_password_hash(new_password)
+
+    db.commit()
+
+    return {"message": "Password reset successful", "new_password": new_password}
+
+
 @router.put("/tenant/{tenant_id}", response_model=TenantOut)
 def update_tenant(
     tenant_id: str,
@@ -232,39 +260,23 @@ def get_tenant_users(tenant_id: str, ctx: CurrentTenant, db: Session = Depends(g
     return [serialize_member(user, tenant) for user in users]
 
 
-@router.get("/company/profile")
+@router.get("/company/profile", response_model=TenantOut)
 def get_company_profile(ctx: CurrentTenant, db: Session = Depends(get_db)):
-    try:
-        ensure_company_admin_or_super_admin(ctx)
-        tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
-        if not tenant:
-            return {"error": "Tenant not found", "tenant_id": ctx.tenant_id}
-        return serialize_tenant(tenant)
-    except Exception as e:
-        return {
-            "error": str(e),
-            "type": type(e).__name__,
-            "tenant_id": getattr(ctx, "tenant_id", "no_ctx"),
-            "ctx_role": getattr(ctx, "role", "no_role"),
-        }
+    ensure_company_admin_or_super_admin(ctx)
+    tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return serialize_tenant(tenant)
 
 
-@router.get("/company/members")
+@router.get("/company/members", response_model=list[UserOut])
 def get_company_members(ctx: CurrentTenant, db: Session = Depends(get_db)):
-    try:
-        ensure_company_admin_or_super_admin(ctx)
-        tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
-        if not tenant:
-            return {"error": "Tenant not found", "tenant_id": ctx.tenant_id}
-        users = db.query(User).filter(User.tenant_id == tenant.id).all()
-        return [serialize_member(user, tenant) for user in users]
-    except Exception as e:
-        return {
-            "error": str(e),
-            "type": type(e).__name__,
-            "tenant_id": getattr(ctx, "tenant_id", "no_ctx"),
-            "ctx_role": getattr(ctx, "role", "no_role"),
-        }
+    ensure_company_admin_or_super_admin(ctx)
+    tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Company not found")
+    users = db.query(User).filter(User.tenant_id == tenant.id).all()
+    return [serialize_member(user, tenant) for user in users]
 
 
 @router.get("/access-options", response_model=AccessOptionsOut)

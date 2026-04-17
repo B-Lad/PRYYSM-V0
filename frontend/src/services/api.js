@@ -63,6 +63,7 @@ export const api = {
     getTenant: (id) => fetchApi(`/admin/tenant/${id}`),
     updateTenant: (id, data) => fetchApi(`/admin/tenant/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     getTenantUsers: (id) => fetchApi(`/admin/tenant/${id}/users`),
+    resetCompanyPassword: (id) => fetchApi(`/admin/tenant/${id}/reset-password`, { method: 'POST' }),
     getCompanyProfile: () => fetchApi('/admin/company/profile'),
     getCompanyMembers: () => fetchApi('/admin/company/members'),
     getAccessOptions: () => fetchApi('/admin/access-options'),
