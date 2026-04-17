@@ -35,6 +35,9 @@ def ensure_super_admin(ctx: CurrentTenant):
 
 
 def ensure_company_admin_or_super_admin(ctx: CurrentTenant):
+    print(
+        f"DEBUG: ensure_company_admin_or_super_admin called with role: {ctx.role}, tenant_id: {ctx.tenant_id}"
+    )
     if ctx.role not in {"super_admin", "admin"}:
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -227,8 +230,7 @@ def get_tenant_users(tenant_id: str, ctx: CurrentTenant, db: Session = Depends(g
 @router.get("/company/profile")
 def get_company_profile(ctx: CurrentTenant, db: Session = Depends(get_db)):
     try:
-        # Temporarily comment out permission check for debugging
-        # ensure_company_admin_or_super_admin(ctx)
+        ensure_company_admin_or_super_admin(ctx)
         tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
         if not tenant:
             return {"error": "Tenant not found", "tenant_id": ctx.tenant_id}
@@ -245,8 +247,7 @@ def get_company_profile(ctx: CurrentTenant, db: Session = Depends(get_db)):
 @router.get("/company/members")
 def get_company_members(ctx: CurrentTenant, db: Session = Depends(get_db)):
     try:
-        # Temporarily comment out permission check for debugging
-        # ensure_company_admin_or_super_admin(ctx)
+        ensure_company_admin_or_super_admin(ctx)
         tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
         if not tenant:
             return {"error": "Tenant not found", "tenant_id": ctx.tenant_id}
