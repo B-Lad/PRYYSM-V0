@@ -35,11 +35,16 @@ def ensure_super_admin(ctx: CurrentTenant):
 
 
 def ensure_company_admin_or_super_admin(ctx: CurrentTenant):
-    print(
-        f"DEBUG: ensure_company_admin_or_super_admin called with role: {ctx.role}, tenant_id: {ctx.tenant_id}"
-    )
+    # Debug: check if ctx has the right attributes
+    if not hasattr(ctx, "role"):
+        raise HTTPException(status_code=403, detail="No role in context")
+    if not hasattr(ctx, "tenant_id"):
+        raise HTTPException(status_code=403, detail="No tenant_id in context")
+
     if ctx.role not in {"super_admin", "admin"}:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise HTTPException(
+            status_code=403, detail=f"Admin access required. Your role: {ctx.role}"
+        )
 
 
 def serialize_tenant(tenant: Tenant):
