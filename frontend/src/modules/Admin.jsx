@@ -421,6 +421,7 @@ export function Admin({ session, onSessionRefresh }) {
                 <Modal
                     title={editingCompany ? `Edit Company: ${editingCompany.name}` : "Create Company"}
                     onClose={() => setShowCompanyModal(false)}
+                    backdropClose={false}
                     footer={<><button className="btn btg bts" onClick={() => setShowCompanyModal(false)}>Cancel</button><button className="btn btp bts" onClick={handleCreateCompany}>{editingCompany ? "Save Company" : "Create Company"}</button></>}
                 >
                     <div className="fg mb8"><label className="fl">Company Name</label><input className="fi" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} /></div>
@@ -480,6 +481,7 @@ export function Admin({ session, onSessionRefresh }) {
                 <Modal
                     title={selectedCompany && memberTargetTenant === selectedCompany.id ? `Add Member to ${selectedCompany.name}` : "Add Member"}
                     onClose={() => setShowMemberModal(false)}
+                    backdropClose={false}
                     footer={<><button className="btn btg bts" onClick={() => setShowMemberModal(false)}>Cancel</button><button className="btn btp bts" onClick={handleCreateUser}>Create Member</button></>}
                     wide
                 >
@@ -507,6 +509,7 @@ export function Admin({ session, onSessionRefresh }) {
                 <Modal
                     title={`Access Matrix: ${editingMember.full_name || editingMember.email}`}
                     onClose={() => setShowAccessEditor(false)}
+                    backdropClose={false}
                     footer={<><button className="btn btg bts" onClick={() => setShowAccessEditor(false)}>Cancel</button><button className="btn btp bts" onClick={() => handleUpdateMember(editingMember)}>Save Access</button></>}
                     wide
                 >
