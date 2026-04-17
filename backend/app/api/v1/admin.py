@@ -212,23 +212,37 @@ def get_tenant_users(tenant_id: str, ctx: CurrentTenant, db: Session = Depends(g
     return [serialize_member(user, tenant) for user in users]
 
 
-@router.get("/company/profile", response_model=TenantOut)
+@router.get("/company/profile")
 def get_company_profile(ctx: CurrentTenant, db: Session = Depends(get_db)):
-    ensure_company_admin_or_super_admin(ctx)
-    tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Company not found")
-    return serialize_tenant(tenant)
+    try:
+        ensure_company_admin_or_super_admin(ctx)
+        tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
+        if not tenant:
+            return {"error": "Tenant not found", "tenant_id": ctx.tenant_id}
+        return serialize_tenant(tenant)
+    except Exception as e:
+        return {
+            "error": str(e),
+            "type": type(e).__name__,
+            "tenant_id": getattr(ctx, "tenant_id", "no_ctx"),
+        }
 
 
-@router.get("/company/members", response_model=list[UserOut])
+@router.get("/company/members")
 def get_company_members(ctx: CurrentTenant, db: Session = Depends(get_db)):
-    ensure_company_admin_or_super_admin(ctx)
-    tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Company not found")
-    users = db.query(User).filter(User.tenant_id == tenant.id).all()
-    return [serialize_member(user, tenant) for user in users]
+    try:
+        ensure_company_admin_or_super_admin(ctx)
+        tenant = db.query(Tenant).filter(Tenant.id == ctx.tenant_id).first()
+        if not tenant:
+            return {"error": "Tenant not found", "tenant_id": ctx.tenant_id}
+        users = db.query(User).filter(User.tenant_id == tenant.id).all()
+        return [serialize_member(user, tenant) for user in users]
+    except Exception as e:
+        return {
+            "error": str(e),
+            "type": type(e).__name__,
+            "tenant_id": getattr(ctx, "tenant_id", "no_ctx"),
+        }
 
 
 @router.get("/access-options", response_model=AccessOptionsOut)
