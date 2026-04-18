@@ -90,7 +90,7 @@ const QC_INSPECTION_TASKS = {
     ],
 };
 
-function TaskRow({ task, index, isDone, onToggle, comment, onCommentChange, completedAt }) {
+function TaskRow({ task, index, isDone, onToggle, comment, onCommentChange, completedAt, disabled }) {
     return (
         <div 
             style={{ 
@@ -100,7 +100,8 @@ function TaskRow({ task, index, isDone, onToggle, comment, onCommentChange, comp
                 padding: "14px 16px", 
                 marginBottom: 10,
                 transition: "all .15s",
-                opacity: isDone ? 0.85 : 1
+                opacity: disabled ? 0.6 : (isDone ? 0.85 : 1),
+                pointerEvents: disabled ? "none" : "auto"
             }}
         >
             <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
@@ -123,7 +124,7 @@ function TaskRow({ task, index, isDone, onToggle, comment, onCommentChange, comp
                         {index + 1}
                     </div>
                     <div 
-                        onClick={onToggle}
+                        onClick={disabled ? undefined : onToggle}
                         style={{ 
                             width: 24, 
                             height: 24, 
@@ -133,7 +134,7 @@ function TaskRow({ task, index, isDone, onToggle, comment, onCommentChange, comp
                             display: "flex", 
                             alignItems: "center", 
                             justifyContent: "center", 
-                            cursor: "pointer", 
+                            cursor: disabled ? "not-allowed" : "pointer", 
                             transition: "all .12s" 
                         }}
                     >
@@ -184,7 +185,7 @@ function TaskRow({ task, index, isDone, onToggle, comment, onCommentChange, comp
                             placeholder={isDone ? "Add completion notes, observations, or issues..." : "Optional notes..."}
                             value={comment || ""}
                             onChange={e => onCommentChange(e.target.value)}
-                            disabled={!isDone && !comment}
+                            disabled={disabled || (!isDone && !comment)}
                         />
                     </div>
 
@@ -212,11 +213,14 @@ function TaskRow({ task, index, isDone, onToggle, comment, onCommentChange, comp
 
 export function PostPosingQC() {
     const [activeTab, setActiveTab] = useState("postposing");
-    const [selectedWO, setSelectedWO] = useState("");
+    const [selectedWOId, setSelectedWOId] = useState("");
     
     // Filter WOs that are in postproc or qa stage
     const postProcWOs = WOS.filter(w => w.status === "postproc" || w.status === "printing");
     const qcWOs = WOS.filter(w => w.status === "qa" || w.status === "postproc");
+
+    // Get selected WO object from ID
+    const selectedWO = selectedWOId ? WOS.find(w => w.id === selectedWOId) : null;
 
     // Post-posing state
     const [ppTasks, setPpTasks] = useState({}); // { woId: { taskId: { done: bool, comment: string, completedAt: string } } }
@@ -224,16 +228,26 @@ export function PostPosingQC() {
     // QC state
     const [qcTasks, setQcTasks] = useState({}); // { woId: { taskId: { done: bool, comment: string, completedAt: string } } }
 
+    // Completed/submitted tracking
+    const [ppSubmitted, setPpSubmitted] = useState({}); // { woId: true }
+    const [qcSubmitted, setQcSubmitted] = useState({}); // { woId: true }
+
     // Get tasks for selected WO
     const currentTasks = activeTab === "postposing" 
         ? (POST_PROCESSING_TASKS[selectedWO?.tech] || [])
         : (QC_INSPECTION_TASKS[selectedWO?.tech] || []);
 
     const currentTaskState = activeTab === "postposing" 
-        ? (ppTasks[selectedWO] || {})
-        : (qcTasks[selectedWO] || {});
+        ? (ppTasks[selectedWOId] || {})
+        : (qcTasks[selectedWOId] || {});
+
+    const isSubmitted = activeTab === "postposing" 
+        ? (ppSubmitted[selectedWOId] || false)
+        : (qcSubmitted[selectedWOId] || false);
 
     function toggleTask(taskId) {
+        if (isSubmitted) return; // Can't modify submitted tasks
+        
         const now = new Date().toLocaleString("en-GB", { 
             day: "numeric", 
             month: "short", 
@@ -243,12 +257,12 @@ export function PostPosingQC() {
 
         if (activeTab === "postposing") {
             setPpTasks(prev => {
-                const woTasks = prev[selectedWO] || {};
+                const woTasks = prev[selectedWOId] || {};
                 const taskData = woTasks[taskId] || { done: false, comment: "", completedAt: "" };
                 
                 return {
                     ...prev,
-                    [selectedWO]: {
+                    [selectedWOId]: {
                         ...woTasks,
                         [taskId]: {
                             ...taskData,
@@ -260,12 +274,12 @@ export function PostPosingQC() {
             });
         } else {
             setQcTasks(prev => {
-                const woTasks = prev[selectedWO] || {};
+                const woTasks = prev[selectedWOId] || {};
                 const taskData = woTasks[taskId] || { done: false, comment: "", completedAt: "" };
                 
                 return {
                     ...prev,
-                    [selectedWO]: {
+                    [selectedWOId]: {
                         ...woTasks,
                         [taskId]: {
                             ...taskData,
@@ -279,14 +293,15 @@ export function PostPosingQC() {
     }
 
     function updateComment(taskId, comment) {
+        if (isSubmitted) return;
         if (activeTab === "postposing") {
             setPpTasks(prev => {
-                const woTasks = prev[selectedWO] || {};
+                const woTasks = prev[selectedWOId] || {};
                 const taskData = woTasks[taskId] || { done: false, comment: "", completedAt: "" };
                 
                 return {
                     ...prev,
-                    [selectedWO]: {
+                    [selectedWOId]: {
                         ...woTasks,
                         [taskId]: { ...taskData, comment }
                     }
@@ -294,12 +309,12 @@ export function PostPosingQC() {
             });
         } else {
             setQcTasks(prev => {
-                const woTasks = prev[selectedWO] || {};
+                const woTasks = prev[selectedWOId] || {};
                 const taskData = woTasks[taskId] || { done: false, comment: "", completedAt: "" };
                 
                 return {
                     ...prev,
-                    [selectedWO]: {
+                    [selectedWOId]: {
                         ...woTasks,
                         [taskId]: { ...taskData, comment }
                     }
@@ -312,6 +327,48 @@ export function PostPosingQC() {
         const done = Object.values(currentTaskState).filter(t => t.done).length;
         const total = currentTasks.length;
         return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
+    }
+
+    function getRequiredProgress() {
+        const requiredTasks = currentTasks.filter(t => t.required);
+        const done = requiredTasks.filter(t => currentTaskState[t.id]?.done).length;
+        const total = requiredTasks.length;
+        return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
+    }
+
+    function handleSubmit() {
+        if (activeTab === "postposing") {
+            setPpSubmitted(prev => ({ ...prev, [selectedWOId]: true }));
+        } else {
+            setQcSubmitted(prev => ({ ...prev, [selectedWOId]: true }));
+        }
+        alert(`${activeTab === "postposing" ? "Post-Processing" : "QC Inspection"} submitted for ${selectedWOId}!`);
+    }
+
+    function handleReset() {
+        if (activeTab === "postposing") {
+            setPpTasks(prev => {
+                const newState = { ...prev };
+                delete newState[selectedWOId];
+                return newState;
+            });
+            setPpSubmitted(prev => {
+                const newState = { ...prev };
+                delete newState[selectedWOId];
+                return newState;
+            });
+        } else {
+            setQcTasks(prev => {
+                const newState = { ...prev };
+                delete newState[selectedWOId];
+                return newState;
+            });
+            setQcSubmitted(prev => {
+                const newState = { ...prev };
+                delete newState[selectedWOId];
+                return newState;
+            });
+        }
     }
 
     const progress = getProgress();
@@ -363,10 +420,9 @@ export function PostPosingQC() {
                     </div>
                     <select 
                         className="fsel" 
-                        value={selectedWO} 
+                        value={selectedWOId} 
                         onChange={e => {
-                            const wo = WOS.find(w => w.id === e.target.value);
-                            setSelectedWO(wo || "");
+                            setSelectedWOId(e.target.value);
                         }}
                         style={{ width: "100%", maxWidth: 600 }}
                     >
@@ -428,26 +484,41 @@ export function PostPosingQC() {
                         </div>
                     </div>
 
-                    {/* Progress Bar */}
+                    {/* Progress Bar + Status */}
                     <div style={{ 
-                        background: "var(--bg2)", 
-                        border: "1px solid var(--border)", 
+                        background: isSubmitted ? "rgba(15,155,106,.08)" : "var(--bg2)", 
+                        border: `1px solid ${isSubmitted ? "var(--green)" : "var(--border)"}`, 
                         borderRadius: "var(--r2)", 
                         padding: "12px 16px", 
                         marginBottom: 16
                     }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                             <span style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700 }}>
                                 {activeTab === "postposing" ? "Post-Processing" : "QC Inspection"} Progress
                             </span>
-                            <span style={{ 
-                                fontFamily: "var(--fm)", 
-                                fontSize: 13, 
-                                fontWeight: 700, 
-                                color: progress.pct === 100 ? "var(--green)" : "var(--accent)"
-                            }}>
-                                {progress.done} / {progress.total} tasks ({progress.pct}%)
-                            </span>
+                            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                                {isSubmitted && (
+                                    <span style={{ 
+                                        fontFamily: "var(--fm)", 
+                                        fontSize: 11, 
+                                        fontWeight: 700, 
+                                        color: "var(--green)",
+                                        background: "var(--gdim)",
+                                        padding: "3px 10px",
+                                        borderRadius: 10
+                                    }}>
+                                        ✓ SUBMITTED
+                                    </span>
+                                )}
+                                <span style={{ 
+                                    fontFamily: "var(--fm)", 
+                                    fontSize: 13, 
+                                    fontWeight: 700, 
+                                    color: isSubmitted ? "var(--green)" : progress.pct === 100 ? "var(--green)" : "var(--accent)"
+                                }}>
+                                    {progress.done} / {progress.total} tasks ({progress.pct}%)
+                                </span>
+                            </div>
                         </div>
                         <div style={{ 
                             background: "var(--bg4)", 
@@ -457,13 +528,62 @@ export function PostPosingQC() {
                         }}>
                             <div style={{ 
                                 width: `${progress.pct}%`, 
-                                background: progress.pct === 100 ? "var(--green)" : "var(--accent)", 
+                                background: isSubmitted ? "var(--green)" : progress.pct === 100 ? "var(--green)" : "var(--accent)", 
                                 height: 10, 
                                 borderRadius: 4,
                                 transition: "width .3s ease"
                             }} />
                         </div>
+                        {progress.pct > 0 && progress.pct < 100 && (
+                            <div style={{ marginTop: 8, fontSize: 11, color: "var(--text2)" }}>
+                                Required tasks: {getRequiredProgress().done} / {getRequiredProgress().total} complete
+                            </div>
+                        )}
                     </div>
+
+                    {/* Submit Button Area */}
+                    {progress.pct > 0 && !isSubmitted && (
+                        <div style={{ 
+                            background: "var(--bg3)", 
+                            border: "1px solid var(--border)", 
+                            borderRadius: "var(--r2)", 
+                            padding: "16px", 
+                            marginBottom: 16,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            gap: 12
+                        }}>
+                            <div>
+                                <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                                    {progress.pct === 100 ? "✓ All Tasks Complete!" : "⚠ Partially Complete"}
+                                </div>
+                                <div className="tiny" style={{ color: "var(--text2)" }}>
+                                    {progress.pct === 100 
+                                        ? "Ready to submit. All tasks have been checked." 
+                                        : `${getRequiredProgress().total - getRequiredProgress().done} required tasks remaining.`}
+                                </div>
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <button 
+                                    className="btn btg bts" 
+                                    onClick={handleReset}
+                                    style={{ fontSize: 12 }}
+                                >
+                                    Reset
+                                </button>
+                                <button 
+                                    className="btn btp bts" 
+                                    onClick={handleSubmit}
+                                    disabled={getRequiredProgress().pct < 100}
+                                    style={{ fontSize: 12 }}
+                                >
+                                    {progress.pct === 100 ? "Submit Complete" : "Submit Partial"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Task Checklist */}
                     <div>
@@ -477,9 +597,15 @@ export function PostPosingQC() {
                             gap: 8
                         }}>
                             {activeTab === "postposing" ? "Post-Processing Tasks" : "QC Inspection Checklist"}
-                            <span className="tiny" style={{ color: "var(--text3)", fontWeight: 400 }}>
-                                — Check off each task as completed
-                            </span>
+                            {isSubmitted ? (
+                                <span className="tiny" style={{ color: "var(--green)", fontWeight: 600 }}>
+                                    — Submitted
+                                </span>
+                            ) : (
+                                <span className="tiny" style={{ color: "var(--text3)", fontWeight: 400 }}>
+                                    — Check off each task as completed
+                                </span>
+                            )}
                         </div>
 
                         {currentTasks.length > 0 ? (
@@ -495,6 +621,7 @@ export function PostPosingQC() {
                                         comment={taskData.comment}
                                         onCommentChange={val => updateComment(task.id, val)}
                                         completedAt={taskData.completedAt}
+                                        disabled={isSubmitted}
                                     />
                                 );
                             })
@@ -505,9 +632,9 @@ export function PostPosingQC() {
                         )}
 
                         {/* Completion Summary */}
-                        {progress.pct === 100 && (
-                            <div className="astrip info" style={{ marginTop: 16, marginBottom: 0 }}>
-                                ✓ All {activeTab === "postposing" ? "post-processing" : "QC inspection"} tasks completed for {selectedWO.id}
+                        {isSubmitted && (
+                            <div className="astrip success" style={{ marginTop: 16, marginBottom: 0 }}>
+                                ✓ {activeTab === "postposing" ? "Post-Processing" : "QC Inspection"} submitted for {selectedWO.id}
                             </div>
                         )}
                     </div>
