@@ -77,15 +77,27 @@ def serialize_member(user: User, tenant: Tenant):
         settings = normalize_tenant_settings(tenant.settings or {})
         allowed_tabs = get_user_tabs(settings, user.id, user.role)
         return {
-            "id": user.id,
+            "id": str(user.id),  # Convert UUID to string
             "email": user.email,
             "full_name": user.full_name,
             "role": user.role,
             "is_active": user.is_active,
-            "tenant_id": tenant.id,
+            "tenant_id": str(tenant.id),  # Convert UUID to string
             "allowed_tabs": allowed_tabs,
         }
     except Exception as e:
+        # Fallback if there's any issue with settings/tabs
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "is_active": user.is_active,
+            "tenant_id": str(tenant.id),
+            "allowed_tabs": ["overview"],  # Default fallback
+        }
+    except Exception as e:
+        print(f"DEBUG serialize_member ERROR: {str(e)}")
         # Fallback if there's any issue with settings/tabs
         return {
             "id": user.id,
@@ -263,10 +275,7 @@ def get_tenant_users(tenant_id: str, ctx: CurrentTenant, db: Session = Depends(g
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     users = db.query(User).filter(User.tenant_id == tenant_id).all()
-    try:
-        return [serialize_member(user, tenant) for user in users]
-    except Exception as e:
-        return {"error": str(e), "type": type(e).__name__}
+    return [serialize_member(user, tenant) for user in users]
 
 
 @router.get("/company/profile", response_model=TenantOut)
