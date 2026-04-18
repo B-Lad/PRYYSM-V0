@@ -22,7 +22,7 @@ const SPARE_SEED = [
 export const SPARE_STATUS_BADGE = { ok: "brun", low: "bwait", critical: "berr" };
 export const SPARE_STATUS_LABEL = { ok: "In Stock", low: "Low Stock", critical: "Out of Stock" };
 
-function ItemCard({ item, setShowEdit, setItems }) {
+function ItemCard({ item, setShowEdit, setItems, addToReorderQueue }) {
     const cat = SPARE_CATEGORIES.find(c => c.id === item.cat);
     const pct = Math.min((item.qty / Math.max(item.minStock * 2, 1)) * 100, 100);
     const barColor = item.status === "ok" ? "var(--green)" : item.status === "low" ? "var(--gold)" : "var(--red)";
@@ -294,7 +294,7 @@ export function SpareStores() {
                         </div>
                     </div>
                     <div className="g g4">
-                        {filtered.map(item => <ItemCard key={item.id} item={item} setShowEdit={setShowEdit} setItems={setItems} />)}
+                        {filtered.map(item => <ItemCard key={item.id} item={item} setShowEdit={setShowEdit} setItems={setItems} addToReorderQueue={addToReorderQueue} />)}
                         {filtered.length === 0 && <div style={{ gridColumn: "1/-1", textAlign: "center", padding: 40, color: "var(--text3)" }}>No items match your filters.</div>}
                     </div>
                 </div>
@@ -387,11 +387,10 @@ export function SpareStores() {
                                             </tr>
                                         );
                                     })}
-
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
                 </div>
             )}
 
