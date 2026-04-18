@@ -25,7 +25,9 @@ function labelForTab(tabId) {
     return NAV.find(item => item.id === tabId)?.label || tabId;
 }
 
-function AccessSummary({ tabs }) {
+function AccessSummary({ tabs, role }) {
+    if (role === "super_admin") return <span className="b brun">Super Admin Access</span>;
+    if (role === "admin") return <span className="b brun">Company Admin Access</span>;
     if (!tabs?.length) return <span className="tiny">No tab access assigned</span>;
     return (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -350,7 +352,7 @@ export function Admin({ session, onSessionRefresh }) {
                                         <td>{user.email}</td>
                                         <td>{user.role}</td>
                                         <td>{user.tenant_id || "—"}</td>
-                                        <td><AccessSummary tabs={user.allowed_tabs} /></td>
+                                        <td><AccessSummary tabs={user.allowed_tabs} role={user.role} /></td>
                                         <td><span className={`b ${user.is_active ? "brun" : "bidle"}`}>{user.is_active ? "Active" : "Inactive"}</span></td>
                                         <td style={{ textAlign: "right" }}>
                                             {!["super_admin", "admin"].includes(user.role) && (
@@ -402,7 +404,7 @@ export function Admin({ session, onSessionRefresh }) {
                                         <td>{user.full_name || "—"}</td>
                                         <td>{user.email}</td>
                                         <td>{user.role}</td>
-                                        <td><AccessSummary tabs={user.allowed_tabs} /></td>
+                                        <td><AccessSummary tabs={user.allowed_tabs} role={user.role} /></td>
                                         <td><span className={`b ${user.is_active ? "brun" : "bidle"}`}>{user.is_active ? "Active" : "Inactive"}</span></td>
                                         <td style={{ textAlign: "right" }}>
                                             {user.role !== "admin" && (
@@ -428,7 +430,7 @@ export function Admin({ session, onSessionRefresh }) {
                     <div className="ch"><span className="ct">My Access</span></div>
                     <div className="cb">
                         <p style={{ marginBottom: 12 }}>Your company admin controls which tabs you can use. Your data remains limited to your company profile.</p>
-                        <AccessSummary tabs={session?.allowed_tabs || []} />
+                        <AccessSummary tabs={session?.allowed_tabs || []} role={session?.role} />
                     </div>
                 </div>
             )}
