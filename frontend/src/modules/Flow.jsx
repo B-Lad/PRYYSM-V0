@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { WOS, PROJECTS, ROUTES_DATA } from '../data/seed.jsx';
-import { TB, SB, DB, Tabs, Prog } from '../components/atoms.jsx';
+import { TB, SB, Tabs, Prog } from '../components/atoms.jsx';
 import { TECH_C } from '../data/constants.js';
 
 const STAGES = [
@@ -19,7 +19,7 @@ const STATUS_COLORS = {
 
 function getProjectInfo(projectId) {
     const proj = PROJECTS.find(p => p.id === projectId);
-    return proj ? { name: proj.name, owner: proj.owner, dept: proj.dept, priority: proj.priority } : { name: projectId, owner: "—", dept: "—", priority: "normal" };
+    return proj ? { name: proj.name, owner: proj.owner, priority: proj.priority } : { name: projectId, owner: "—", priority: "normal" };
 }
 
 export function Flow() {
@@ -65,10 +65,7 @@ export function Flow() {
                                                         <span>{wo.tech} · {wo.material}</span>
                                                     </div>
                                                     <div className="rowsb mb4">
-                                                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                                            <DB code={wo.dept} />
-                                                            <TB tech={wo.tech} />
-                                                        </div>
+                                                        <TB tech={wo.tech} />
                                                         <span className="tiny">Qty: {wo.qty}</span>
                                                     </div>
                                                     <div className="tiny mb4" style={{ color: "var(--text2)" }}>👤 {wo.requestor}</div>
@@ -81,7 +78,6 @@ export function Flow() {
                                                         <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)", fontSize: 10, color: "var(--text2)" }}>
                                                             <div className="rowsb mb2"><span className="tiny">Project</span><span style={{ fontWeight: 600 }}>{proj.name}</span></div>
                                                             <div className="rowsb mb2"><span className="tiny">Owner</span><span>{proj.owner}</span></div>
-                                                            <div className="rowsb mb2"><span className="tiny">Dept</span><span>{proj.dept}</span></div>
                                                             <div className="rowsb"><span className="tiny">Priority</span><SB s={wo.priority} /></div>
                                                         </div>
                                                     )}
