@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Modal } from '../components/atoms.jsx';
+import { ImageUpload } from '../components/ImageUpload.jsx';
 
 const SPARE_CATEGORIES = [
     { id: "packing", name: "Packing Material", icon: "📦", color: "var(--accent)" },
@@ -27,8 +28,12 @@ function ItemCard({ item, setShowEdit, setItems }) {
     const barColor = item.status === "ok" ? "var(--green)" : item.status === "low" ? "var(--gold)" : "var(--red)";
     return (
         <div className="card" style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ height: 120, background: "var(--bg3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, borderBottom: "1px solid var(--border)", position: "relative" }}>
-                {cat?.icon || "◇"}
+            <div style={{ height: 120, background: "var(--bg3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, borderBottom: "1px solid var(--border)", position: "relative", overflow: "hidden" }}>
+                {item.img ? (
+                    <img src={item.img} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                    cat?.icon || "◇"
+                )}
                 <div style={{ position: "absolute", top: 8, right: 8 }}><span className={`b ${SPARE_STATUS_BADGE[item.status]}`} style={{ fontSize: 9 }}>{SPARE_STATUS_LABEL[item.status]}</span></div>
             </div>
             <div className="cb" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, padding: 12 }}>
@@ -66,12 +71,13 @@ function SpareFormModal({ title, data, setData, onSave, onClose }) {
                     </div>
                     <div className="mb12">
                         <label className="fl">Item Image</label>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                            <div style={{ width: 60, height: 60, background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{SPARE_CATEGORIES.find(c => c.id === data.cat)?.icon || "◇"}</div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                <button className="btn btg bts" style={{ fontSize: 11 }}>↑ Upload Image</button>
-                                <button className="btn btg bts" style={{ fontSize: 11 }}>📷 Use Camera</button>
-                            </div>
+                        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                            {data.img ? (
+                                <img src={data.img} alt={data.name} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: "var(--r2)", border: "1px solid var(--border)" }} />
+                            ) : (
+                                <div style={{ width: 80, height: 80, background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{SPARE_CATEGORIES.find(c => c.id === data.cat)?.icon || "◇"}</div>
+                            )}
+                            <ImageUpload onUpload={(url) => setData(p => ({ ...p, img: url }))} />
                         </div>
                     </div>
                     <div className="frow">
@@ -96,7 +102,7 @@ export function SpareStores() {
     const [showAdd, setShowAdd] = useState(false);
     const [showEdit, setShowEdit] = useState(null);
     const [showScan, setShowScan] = useState(false);
-    const [form, setForm] = useState({ name: "", cat: "packing", desc: "", qty: 0, minStock: 0, location: "" });
+    const [form, setForm] = useState({ name: "", cat: "packing", desc: "", qty: 0, minStock: 0, location: "", img: null });
     const sf = k => v => setForm(p => ({ ...p, [k]: v }));
 
     const lowStock = items.filter(i => i.status === "low" || i.status === "critical");
@@ -116,9 +122,9 @@ export function SpareStores() {
     function saveItem() {
         const id = "SP" + (items.length + 10).toString().padStart(2, "0");
         const status = form.qty === 0 ? "critical" : form.qty <= form.minStock ? "low" : "ok";
-        setItems(p => [...p, { ...form, id, status, img: null }]);
+        setItems(p => [...p, { ...form, id, status }]);
         setShowAdd(false);
-        setForm({ name: "", cat: "packing", desc: "", qty: 0, minStock: 0, location: "" });
+        setForm({ name: "", cat: "packing", desc: "", qty: 0, minStock: 0, location: "", img: null });
     }
     function saveEdit() {
         setItems(p => p.map(i => {
@@ -259,12 +265,13 @@ export function SpareStores() {
                         </div>
                         <div className="mb12">
                             <label className="fl">Item Image</label>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                <div style={{ width: 60, height: 60, background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{SPARE_CATEGORIES.find(c => c.id === form.cat)?.icon || "◇"}</div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                    <button className="btn btg bts" style={{ fontSize: 11 }}>↑ Upload Image</button>
-                                    <button className="btn btg bts" style={{ fontSize: 11 }}>📷 Use Camera</button>
-                                </div>
+                            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                                {form.img ? (
+                                    <img src={form.img} alt={form.name} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: "var(--r2)", border: "1px solid var(--border)" }} />
+                                ) : (
+                                    <div style={{ width: 80, height: 80, background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{SPARE_CATEGORIES.find(c => c.id === form.cat)?.icon || "◇"}</div>
+                                )}
+                                <ImageUpload onUpload={(url) => sf("img")(url)} />
                             </div>
                         </div>
                         <div className="frow">
