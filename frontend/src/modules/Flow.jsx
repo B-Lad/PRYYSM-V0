@@ -1,58 +1,101 @@
-import React, { useState, useEffect, useRef } from "react";
-import { WOS, TASKS_DATA, ROUTES_DATA } from '../data/seed.jsx';
+import React, { useState } from "react";
+import { WOS, PROJECTS, ROUTES_DATA } from '../data/seed.jsx';
 import { TB, SB, DB, Tabs, Prog } from '../components/atoms.jsx';
 import { TECH_C } from '../data/constants.js';
 
+const STAGES = [
+    { id: "production", label: "🖨 Printing", icon: "🖨", limit: 7 },
+    { id: "postproc", label: "⚙️ Post-Processing", icon: "⚙️", limit: 5 },
+    { id: "qa", label: "🔍 QA", icon: "🔍", limit: 4 },
+    { id: "completed", label: "📦 Handoff", icon: "📦", limit: 6 },
+];
+
+const STATUS_COLORS = {
+    production: "var(--accent)",
+    postproc: "var(--purple)",
+    qa: "var(--yellow)",
+    completed: "var(--green)",
+};
+
+function getProjectInfo(projectId) {
+    const proj = PROJECTS.find(p => p.id === projectId);
+    return proj ? { name: proj.name, owner: proj.owner, dept: proj.dept, priority: proj.priority } : { name: projectId, owner: "—", dept: "—", priority: "normal" };
+}
+
 export function Flow() {
     const [tab, setTab] = useState("kanban");
-    const [pulled, setPulled] = useState(new Set());
-    const STAGES = [
-        { id: "printing", label: "Printing", status: "production", limit: 7, color: "var(--accent)" },
-        { id: "postproc", label: "Post-Processing", status: "postproc", limit: 5, color: "var(--purple)" },
-        { id: "qa", label: "QA", status: "qa", limit: 4, color: "var(--yellow)" },
-        { id: "handoff", label: "Handoff to Dept", status: "completed", limit: 6, color: "var(--green)" },
-    ];
+    const [selectedWO, setSelectedWO] = useState(null);
+
+    const selWO = selectedWO ? WOS.find(w => w.id === selectedWO) : null;
+
     return (
         <div>
-      <div className="pg-hd"><span className="pg-eyebrow">OPERATIONS</span><h1 className="pg-title">Flow & Tasks</h1></div>
-            <Tabs tabs={[{ id: "kanban", label: "WIP Kanban" }, { id: "tasks", label: "Task Board" }, { id: "routing", label: "Routing Templates" }]} active={tab} onChange={setTab} />
+            <div className="pg-hd"><span className="pg-eyebrow">OPERATIONS</span><h1 className="pg-title">Flow & Tasks</h1></div>
+            <Tabs tabs={[{ id: "kanban", label: "📋 WIP Kanban" }, { id: "routing", label: "🔀 Routing Templates" }]} active={tab} onChange={setTab} />
+
             {tab === "kanban" && (
-                <div className="kanban">
-                    {STAGES.map(s => {
-                        const wos = WOS.filter(w => w.status === s.status);
-                        const over = wos.length > s.limit;
-                        return (
-                            <div key={s.id} className="kcol">
-                                <div className="kch" style={{ borderTopColor: s.color, borderTopWidth: 2 }}>
-                                    <span className="kct" style={{ color: s.color }}>{s.label}</span>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span className="mono dim">{wos.length}</span><span className={`kwip ${over ? "ov" : "ok"}`}>lim {s.limit}</span></div>
-                                </div>
-                                <div className="kbody">
-                                    {wos.map(wo => (
-                                        <div key={wo.id} className={`kcard ${wo.priority}`}>
-                                            <div className="rowsb mb4"><span className="tiny">{wo.id}</span><TB tech={wo.tech} /></div>
-                                            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>{wo.part}</div>
-                                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}><DB code={wo.code || wo.dept.slice(0, 3).toUpperCase()} /><span className="tiny">{wo.project}</span></div>
-                                            <div style={{ fontSize: 10, color: "var(--text2)", display: "flex", gap: 8 }}><span>{wo.qty}×</span><span>{wo.due}</span>{wo.priority === "urgent" && <span style={{ color: "var(--red)", fontWeight: 600 }}>URGENT</span>}</div>
-                                        </div>
-                                    ))}
-                                    {wos.length === 0 && <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text4)", fontSize: 12 }}>Empty</div>}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-            {tab === "tasks" && (
                 <div>
-                    <div className="rowsb mb16"><span className="dim small">Pull from your work center queue</span><select className="fsel" style={{ width: "auto", padding: "5px 10px", fontSize: 12 }}><option>All Work Centers</option><option>SLS Bay</option><option>SLA Station 1</option><option>QA Benches</option></select></div>
-                    {TASKS_DATA.map(t => {
-                        const done = pulled.has(t.id);
-                        return <div key={t.id} className={`trow ${t.priority}`} style={{ opacity: done ? .4 : 1, transition: "opacity .3s" }}><div style={{ width: 7, height: 7, borderRadius: "50%", background: t.priority === "urgent" ? "var(--red)" : t.priority === "high" ? "var(--yellow)" : "var(--green)", flexShrink: 0 }} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 3 }}>{t.name}</div><div style={{ fontSize: 11, color: "var(--text2)", display: "flex", gap: 14, flexWrap: "wrap" }}><span>{t.wc}</span><span className="mono">{t.wo}</span><span style={{ color: t.eta === "Now" ? "var(--red)" : "var(--text3)", fontWeight: t.eta === "Now" ? 700 : 400 }}>{t.eta === "Now" ? "⚡ NOW" : `ETA: ${t.eta}`}</span></div></div><TB tech={t.tech} /><SB s={t.priority} /><button style={{ padding: "5px 14px", borderRadius: "var(--r)", border: "1px solid var(--border2)", background: "transparent", color: done ? "var(--green)" : "var(--text2)", fontSize: 11, fontFamily: "var(--fm)", cursor: "pointer", transition: "all .12s" }} onClick={() => setPulled(p => new Set([...p, t.id]))}>{done ? "✓ Pulled" : "Pull →"}</button></div>;
-                    })}
-                    {pulled.size > 0 && <button className="btn btg bts mt8" onClick={() => setPulled(new Set())}>Reset</button>}
+                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${STAGES.length}, minmax(280px, 1fr))`, gap: 12, overflowX: "auto", paddingBottom: 16 }}>
+                        {STAGES.map(stage => {
+                            const cards = WOS.filter(w => w.status === stage.id);
+                            const over = cards.length > stage.limit;
+                            return (
+                                <div key={stage.id} style={{ background: "var(--bg3)", borderRadius: "var(--r3)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 200px)", overflow: "hidden" }}>
+                                    <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg1)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, borderTopColor: STATUS_COLORS[stage.id], borderTopWidth: 3 }}>
+                                        <span style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700 }}>{stage.icon} {stage.label}</span>
+                                        <span style={{ fontSize: 10, fontFamily: "var(--fm)", background: over ? "var(--rdim)" : "var(--gdim)", color: over ? "var(--red)" : "var(--green)", padding: "2px 8px", borderRadius: 10, fontWeight: 700 }}>{cards.length}/{stage.limit}</span>
+                                    </div>
+                                    <div style={{ flex: 1, overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                                        {cards.length === 0 && <div style={{ textAlign: "center", padding: 20, color: "var(--text3)", fontSize: 11 }}>No items</div>}
+                                        {cards.map(wo => {
+                                            const proj = getProjectInfo(wo.project);
+                                            return (
+                                                <div key={wo.id} className={`kcard ${wo.priority}`} style={{ cursor: "pointer", marginBottom: 0, padding: 10, borderLeftWidth: 3, position: "relative" }}
+                                                    onClick={() => setSelectedWO(wo.id === selectedWO ? null : wo.id)}>
+                                                    <div className="rowsb mb4">
+                                                        <span className="tacc">{wo.id}</span>
+                                                        <div style={{ display: "flex", gap: 4 }}>
+                                                            {wo.priority === "urgent" && <span className="b burgent" style={{ fontSize: 8 }}>URGENT</span>}
+                                                            {wo.priority === "high" && <span className="b bhigh" style={{ fontSize: 8 }}>HIGH</span>}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, marginBottom: 3, lineHeight: 1.3 }}>{proj.name}</div>
+                                                    <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 4 }}>{wo.part}</div>
+                                                    <div style={{ fontSize: 10, color: "var(--text2)", display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                                                        <span>{wo.tech} · {wo.material}</span>
+                                                    </div>
+                                                    <div className="rowsb mb4">
+                                                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                                            <DB code={wo.dept} />
+                                                            <TB tech={wo.tech} />
+                                                        </div>
+                                                        <span className="tiny">Qty: {wo.qty}</span>
+                                                    </div>
+                                                    <div className="tiny mb4" style={{ color: "var(--text2)" }}>👤 {wo.requestor}</div>
+                                                    <div className="rowsb">
+                                                        <span className="tiny" style={{ color: wo.priority === "urgent" ? "var(--red)" : "var(--text3)" }}>Due: {wo.due}</span>
+                                                        {wo.machine && wo.machine !== "—" && <span className="tiny" style={{ color: "var(--accent)" }}>🖨 {wo.machine}</span>}
+                                                    </div>
+
+                                                    {selectedWO === wo.id && (
+                                                        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)", fontSize: 10, color: "var(--text2)" }}>
+                                                            <div className="rowsb mb2"><span className="tiny">Project</span><span style={{ fontWeight: 600 }}>{proj.name}</span></div>
+                                                            <div className="rowsb mb2"><span className="tiny">Owner</span><span>{proj.owner}</span></div>
+                                                            <div className="rowsb mb2"><span className="tiny">Dept</span><span>{proj.dept}</span></div>
+                                                            <div className="rowsb"><span className="tiny">Priority</span><SB s={wo.priority} /></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
+
             {tab === "routing" && (
                 <div className="g g3">
                     {ROUTES_DATA.map(r => {
@@ -77,7 +120,3 @@ export function Flow() {
         </div>
     );
 }
-
-/* ══════════════════════════════════════════════════════════════════
-   DEPARTMENTS & COST
-══════════════════════════════════════════════════════════════════ */
