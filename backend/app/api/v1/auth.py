@@ -10,6 +10,7 @@ from app.core.security import create_access_token, decode_access_token
 from db.models import Tenant, User
 from schemas.schemas import (
     PasswordChange,
+    PasswordSet,
     SessionOut,
     Token,
     UserCreate,
@@ -261,6 +262,43 @@ def change_password(
         raise HTTPException(
             status_code=400, detail="New password must be at least 8 characters"
         )
+
+    user.hashed_password = get_password_hash(body.new_password)
+    db.commit()
+    return {"message": "Password updated successfully"}
+
+
+@router.post("/users/{user_id}/set-password")
+def set_user_password(
+    user_id: str,
+    body: PasswordSet,
+    ctx: CurrentTenant,
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=400, detail="New password must be at least 8 characters"
+        )
+
+    if ctx.role == "super_admin":
+        pass
+    elif ctx.role == "admin":
+        if str(user.tenant_id) != ctx.tenant_id:
+            raise HTTPException(
+                status_code=403, detail="Cannot reset passwords for another company"
+            )
+        if user.role == "super_admin":
+            raise HTTPException(
+                status_code=403, detail="Cannot reset super admin passwords"
+            )
+    else:
+        if str(user.id) != str(ctx.user_id):
+            raise HTTPException(
+                status_code=403, detail="Not allowed to reset another user's password"
+            )
 
     user.hashed_password = get_password_hash(body.new_password)
     db.commit()

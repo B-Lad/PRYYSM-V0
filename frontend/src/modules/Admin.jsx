@@ -79,6 +79,9 @@ export function Admin({ session, onSessionRefresh }) {
     const [newUser, setNewUser] = useState(EMPTY_USER);
     const [companyForm, setCompanyForm] = useState(EMPTY_COMPANY);
     const [accessOptions, setAccessOptions] = useState([]);
+    const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
+    const [passwordResetTarget, setPasswordResetTarget] = useState(null);
+    const [passwordResetForm, setPasswordResetForm] = useState({ new_password: "", confirm_password: "" });
 
     const userRole = session?.role || localStorage.getItem("user_role");
     const tenantId = session?.tenant_id || localStorage.getItem("tenant_id");
@@ -100,12 +103,9 @@ export function Admin({ session, onSessionRefresh }) {
     async function loadData() {
         try {
             if (isSuperAdmin) {
-                const [tenantList, access] = await Promise.all([
-                    api.getTenants(),
-                    api.getAccessOptions().catch(() => ({ assignable_tabs: [] })),
-                ]);
+                const tenantList = await api.getTenants();
                 setCompanies(tenantList);
-                setAccessOptions((access.assignable_tabs || []).map(id => ({ id, label: labelForTab(id) })));
+                setAccessOptions(NAV.filter(item => !["admin", "config"].includes(item.id)).map(item => ({ id: item.id, label: item.label })));
                 if (tab === "users") {
                     const allUsers = await api.getUsers();
                     setUsers(allUsers);
@@ -162,18 +162,35 @@ export function Admin({ session, onSessionRefresh }) {
         setShowMemberModal(true);
     }
 
-    async function handleResetCompanyPassword(company) {
-        const newPassword = prompt(`Enter new password for ${company.name} admin:`);
-        if (!newPassword) return;
+    function openPasswordResetModal(target) {
+        setPasswordResetTarget(target);
+        setPasswordResetForm({ new_password: "", confirm_password: "" });
+        setShowPasswordResetModal(true);
+    }
 
-        if (newPassword.length < 6) {
-            alert("Password must be at least 6 characters long.");
+    async function handleResetPassword() {
+        if (!passwordResetForm.new_password || !passwordResetForm.confirm_password) {
+            alert("Please fill in both password fields.");
+            return;
+        }
+        if (passwordResetForm.new_password !== passwordResetForm.confirm_password) {
+            alert("Password and confirm password must match.");
+            return;
+        }
+        if (passwordResetForm.new_password.length < 8) {
+            alert("Password must be at least 8 characters long.");
             return;
         }
 
         try {
-            const result = await api.resetCompanyPassword(company.id, { password: newPassword });
-            alert(`Password reset successful! New password has been set.\n\nPlease inform the admin user of the new password.`);
+            if (passwordResetTarget?.type === "company_admin") {
+                await api.resetCompanyPassword(passwordResetTarget.company.id, { password: passwordResetForm.new_password });
+            } else if (passwordResetTarget?.type === "member") {
+                await api.setUserPassword(passwordResetTarget.user.id, { new_password: passwordResetForm.new_password });
+            }
+            setShowPasswordResetModal(false);
+            setPasswordResetTarget(null);
+            alert("Password updated successfully.");
         } catch (err) {
             alert("Failed to reset password: " + err.message);
         }
@@ -220,15 +237,15 @@ export function Admin({ session, onSessionRefresh }) {
 
     async function handleManageCompany(company) {
         try {
-            const [profile, members] = await Promise.all([
-                api.getTenant(company.id),
-                api.getTenantUsers(company.id),
-            ]);
-            setSelectedCompany(profile);
+            const members = await api.getTenantUsers(company.id);
+            setSelectedCompany(company);
             setCompanyMembers(members);
             setShowManageCompany(true);
         } catch (err) {
-            alert(err.message || "Failed to load company details.");
+            setSelectedCompany(company);
+            setCompanyMembers([]);
+            setShowManageCompany(true);
+            alert(err.message || "Failed to load company members from backend.");
         }
     }
 
@@ -342,6 +359,7 @@ export function Admin({ session, onSessionRefresh }) {
                                                 <td>{company.max_machines}</td>
                                         <td style={{ textAlign: "right" }}>
                                             <button type="button" className="btn btg bts" onClick={() => openCreateCompanyModal(company)}>Edit</button>
+                                            <button type="button" className="btn btg bts" style={{ marginLeft: 8 }} onClick={() => openPasswordResetModal({ type: "company_admin", company })}>Reset Admin Password</button>
                                             <button type="button" className="btn btd bts" style={{ marginLeft: 8 }} onClick={() => handleManageCompany(company)}>Access Control</button>
                                         </td>
                                             </tr>
@@ -409,6 +427,9 @@ export function Admin({ session, onSessionRefresh }) {
                                                 <button type="button" className="btn btg bts" onClick={() => openAccessEditor(user)}>Access Matrix</button>
                                             )}
                                             {user.role !== "admin" && (
+                                                <button type="button" className="btn btg bts" style={{ marginLeft: 8 }} onClick={() => openPasswordResetModal({ type: "member", user })}>Reset Password</button>
+                                            )}
+                                            {user.role !== "admin" && (
                                                 <button type="button" className="btn btd bts" style={{ marginLeft: 8 }} onClick={() => setShowDeleteConfirm(user)}>Deactivate</button>
                                             )}
                                         </td>
@@ -453,8 +474,8 @@ export function Admin({ session, onSessionRefresh }) {
                     {editingCompany && (
                         <div className="fg mb8">
                             <label className="fl">Admin Password Reset</label>
-                            <button type="button" className="btn btd bts" onClick={() => handleResetCompanyPassword(editingCompany)} style={{ marginRight: 8 }}>Reset Admin Password</button>
-                            <span className="tiny">This will generate a new password for the company admin</span>
+                            <button type="button" className="btn btd bts" onClick={() => openPasswordResetModal({ type: "company_admin", company: editingCompany })} style={{ marginRight: 8 }}>Reset Admin Password</button>
+                            <span className="tiny">Set a custom new password for the company admin</span>
                         </div>
                     )}
                     {!editingCompany && (
@@ -481,6 +502,7 @@ export function Admin({ session, onSessionRefresh }) {
                         <span className="ct">Company Members</span>
                         <div className="row">
                             <button type="button" className="btn btg bts" onClick={() => openCreateCompanyModal(selectedCompany)}>Edit Limits</button>
+                            <button type="button" className="btn btg bts" onClick={() => openPasswordResetModal({ type: "company_admin", company: selectedCompany })}>Reset Admin Password</button>
                             <button type="button" className="btn btp bts" onClick={() => openCreateMemberModal(selectedCompany.id, selectedCompany)}>+ Add Member</button>
                         </div>
                     </div>
@@ -497,6 +519,7 @@ export function Admin({ session, onSessionRefresh }) {
                                         <td><span className={`b ${member.is_active ? "brun" : "bidle"}`}>{member.is_active ? "Active" : "Inactive"}</span></td>
                                         <td style={{ textAlign: "right" }}>
                                             <button type="button" className="btn btg bts" onClick={() => openAccessEditor(member)}>Access Matrix</button>
+                                            <button type="button" className="btn btg bts" style={{ marginLeft: 8 }} onClick={() => openPasswordResetModal({ type: "member", user: member })}>Reset Password</button>
                                             <button type="button" className="btn btd bts" style={{ marginLeft: 8 }} onClick={() => setShowDeleteConfirm(member)}>Deactivate</button>
                                         </td>
                                     </tr>
@@ -568,6 +591,23 @@ export function Admin({ session, onSessionRefresh }) {
                             <div className="cb">Company admins keep full company-level access, but they still cannot see the super-admin company registration list.</div>
                         </div>
                     )}
+                </Modal>
+            )}
+
+            {showPasswordResetModal && (
+                <Modal
+                    title={passwordResetTarget?.type === "company_admin" ? `Reset Admin Password: ${passwordResetTarget.company.name}` : `Reset Password: ${passwordResetTarget?.user?.full_name || passwordResetTarget?.user?.email || ""}`}
+                    onClose={() => setShowPasswordResetModal(false)}
+                    footer={<><button className="btn btg bts" onClick={() => setShowPasswordResetModal(false)}>Cancel</button><button className="btn btp bts" onClick={handleResetPassword}>Update Password</button></>}
+                >
+                    <div className="fg mb8">
+                        <label className="fl">New Password</label>
+                        <input className="fi" type="password" value={passwordResetForm.new_password} onChange={e => setPasswordResetForm({ ...passwordResetForm, new_password: e.target.value })} placeholder="Enter custom password" />
+                    </div>
+                    <div className="fg">
+                        <label className="fl">Confirm Password</label>
+                        <input className="fi" type="password" value={passwordResetForm.confirm_password} onChange={e => setPasswordResetForm({ ...passwordResetForm, confirm_password: e.target.value })} placeholder="Repeat custom password" />
+                    </div>
                 </Modal>
             )}
         </div>

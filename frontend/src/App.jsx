@@ -136,7 +136,12 @@ export default function App() {
     }
 
     async function handleChangePassword() {
-        if (!passwordForm.current_password || !passwordForm.new_password || !passwordForm.confirm_password) {
+        const canAdminSetDirectly = ["super_admin", "admin"].includes(session?.role);
+        if (!canAdminSetDirectly && !passwordForm.current_password) {
+            toast("Enter your current password.", "e");
+            return;
+        }
+        if (!passwordForm.new_password || !passwordForm.confirm_password) {
             toast("Fill in all password fields.", "e");
             return;
         }
@@ -145,10 +150,16 @@ export default function App() {
             return;
         }
         try {
-            await api.changePassword({
-                current_password: passwordForm.current_password,
-                new_password: passwordForm.new_password,
-            });
+            if (canAdminSetDirectly) {
+                await api.setUserPassword(session.id, {
+                    new_password: passwordForm.new_password,
+                });
+            } else {
+                await api.changePassword({
+                    current_password: passwordForm.current_password,
+                    new_password: passwordForm.new_password,
+                });
+            }
             setPasswordForm({ current_password: "", new_password: "", confirm_password: "" });
             setShowPasswordModal(false);
             toast("Password updated successfully.", "s");
@@ -214,10 +225,12 @@ export default function App() {
                         onClose={() => setShowPasswordModal(false)}
                         footer={<><button className="btn btg bts" onClick={() => setShowPasswordModal(false)}>Cancel</button><button className="btn btp bts" onClick={handleChangePassword}>Update Password</button></>}
                     >
-                        <div className="fg mb8">
-                            <label className="fl">Current Password</label>
-                            <input className="fi" type="password" value={passwordForm.current_password} onChange={e => setPasswordForm({ ...passwordForm, current_password: e.target.value })} />
-                        </div>
+                        {!["super_admin", "admin"].includes(session?.role) && (
+                            <div className="fg mb8">
+                                <label className="fl">Current Password</label>
+                                <input className="fi" type="password" value={passwordForm.current_password} onChange={e => setPasswordForm({ ...passwordForm, current_password: e.target.value })} />
+                            </div>
+                        )}
                         <div className="fg mb8">
                             <label className="fl">New Password</label>
                             <input className="fi" type="password" value={passwordForm.new_password} onChange={e => setPasswordForm({ ...passwordForm, new_password: e.target.value })} />

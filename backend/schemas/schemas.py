@@ -175,6 +175,10 @@ class PasswordChange(BaseModel):
     new_password: str
 
 
+class PasswordSet(BaseModel):
+    new_password: str
+
+
 class TenantCreate(BaseModel):
     name: str
     slug: str
