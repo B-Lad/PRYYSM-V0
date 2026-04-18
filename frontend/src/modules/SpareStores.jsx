@@ -52,7 +52,7 @@ function ItemCard({ item, setShowEdit, setItems }) {
                 </div>
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                     <button className="btn btg bts" style={{ flex: 1, justifyContent: "center", fontSize: 10 }} onClick={() => setShowEdit({ ...item })}>✎ Edit</button>
-                    <button className="btn btg bts" style={{ fontSize: 10, padding: "3px 8px", color: "var(--gold)", borderColor: "rgba(184,134,11,.3)" }} onClick={() => setItems(p => p.map(i => i.id === item.id ? { ...i, qty: i.qty + 10 } : i))}>⟳ Reorder</button>
+                    <button className="btn btg bts" style={{ fontSize: 10, padding: "3px 8px", color: "var(--gold)", borderColor: "rgba(184,134,11,.3)" }} onClick={() => addToReorderQueue(item)}>⟳ Reorder</button>
                 </div>
             </div>
         </div>
@@ -102,6 +102,7 @@ export function SpareStores() {
     const [showAdd, setShowAdd] = useState(false);
     const [showEdit, setShowEdit] = useState(null);
     const [showScan, setShowScan] = useState(false);
+    const [reorderQueue, setReorderQueue] = useState([]); // { itemId, qty }
     const [form, setForm] = useState({ name: "", cat: "packing", desc: "", qty: 0, minStock: 0, location: "", img: null });
     const sf = k => v => setForm(p => ({ ...p, [k]: v }));
 
@@ -135,6 +136,45 @@ export function SpareStores() {
         setShowEdit(null);
     }
     function deleteItem(id) { setItems(p => p.filter(i => i.id !== id)); }
+
+    function addToReorderQueue(item) {
+        const suggestedQty = Math.max(item.minStock * 2 - item.qty, item.minStock);
+        setReorderQueue(prev => {
+            if (prev.find(r => r.itemId === item.id)) {
+                return prev; // Already in queue
+            }
+            return [...prev, { itemId: item.id, qty: suggestedQty }];
+        });
+        setTab("reorder");
+    }
+
+    function updateReorderQty(itemId, qty) {
+        setReorderQueue(prev => prev.map(r => r.itemId === itemId ? { ...r, qty } : r));
+    }
+
+    function removeFromReorderQueue(itemId) {
+        setReorderQueue(prev => prev.filter(r => r.itemId !== itemId));
+    }
+
+    function placeReorder(itemId) {
+        const reorderItem = reorderQueue.find(r => r.itemId === itemId);
+        if (!reorderItem) return;
+        setItems(p => p.map(i => {
+            if (i.id !== itemId) return i;
+            return { ...i, qty: i.qty + reorderItem.qty, status: i.qty + reorderItem.qty > i.minStock ? "ok" : "low" };
+        }));
+        removeFromReorderQueue(itemId);
+    }
+
+    function placeAllReorders() {
+        reorderQueue.forEach(r => {
+            setItems(p => p.map(i => {
+                if (i.id !== r.itemId) return i;
+                return { ...i, qty: i.qty + r.qty, status: i.qty + r.qty > i.minStock ? "ok" : "low" };
+            }));
+        });
+        setReorderQueue([]);
+    }
 
     const statusBadge = SPARE_STATUS_BADGE;
     const statusLabel = SPARE_STATUS_LABEL;
@@ -196,7 +236,13 @@ export function SpareStores() {
 
                     {lowStock.length > 0 && (
                         <div className="card">
-                            <div className="ch"><span className="ct">Items Needing Attention</span><span className="b berr" style={{ fontSize: 9 }}>{lowStock.length} items</span></div>
+                            <div className="ch">
+                                <span className="ct">Items Needing Attention</span>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <span className="b berr" style={{ fontSize: 9 }}>{lowStock.length} items</span>
+                                    <button className="btn btg bts" style={{ fontSize: 10 }} onClick={() => { lowStock.forEach(item => addToReorderQueue(item)); }}>⟳ Add All to Reorder</button>
+                                </div>
+                            </div>
                             <div className="tw">
                                 <table>
                                     <thead><tr><th>#</th><th>Item Name</th><th>Category</th><th>Quantity</th><th>Min Stock</th><th>Status</th><th>Action</th></tr></thead>
@@ -211,7 +257,7 @@ export function SpareStores() {
                                                     <td><span className="mono" style={{ color: item.status === "critical" ? "var(--red)" : "var(--gold)" }}>{item.qty}</span></td>
                                                     <td className="mono">{item.minStock}</td>
                                                     <td><span className={`b ${statusBadge[item.status]}`} style={{ fontSize: 9 }}>{statusLabel[item.status]}</span></td>
-                                                    <td><button className="btn btg bts" style={{ fontSize: 10 }} onClick={() => setItems(p => p.map(x => x.id === item.id ? { ...x, qty: x.qty + 20, status: "ok" } : x))}>⟳ Mark for Reorder</button></td>
+                                                    <td><button className="btn btg bts" style={{ fontSize: 10 }} onClick={() => addToReorderQueue(item)}>⟳ Mark for Reorder</button></td>
                                                 </tr>
                                             );
                                         })}
@@ -292,36 +338,56 @@ export function SpareStores() {
                 <div className="card">
                     <div className="ch">
                         <div>
-                            <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700 }}>Reorder Management for Spares &amp; Stores</div>
-                            <div className="tiny">Manage and create purchase orders for items that need restocking.</div>
+                            <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700 }}>Reorder Request</div>
+                            <div className="tiny">Specify quantities for items you need to restock.</div>
                         </div>
-                        {lowStock.length > 0 && <button className="btn btp bts" style={{ fontSize: 11, background: "var(--rdim)", color: "var(--red)", border: "1px solid rgba(220,38,38,.3)" }}>⚠ Reorder All Critical ({lowStock.length})</button>}
+                        {reorderQueue.length > 0 && (
+                            <button className="btn btp bts" style={{ fontSize: 11 }} onClick={placeAllReorders}>
+                                Place All Orders ({reorderQueue.length})
+                            </button>
+                        )}
                     </div>
                     <div className="tw">
-                        <table>
-                            <thead><tr><th>Image</th><th>Item Name</th><th>Category</th><th>Current Qty</th><th>Reorder Qty</th><th>Status</th><th>Action</th></tr></thead>
-                            <tbody>
-                                {lowStock.length === 0 && <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--green)", padding: 30 }}>All items are sufficiently stocked.</td></tr>}
-                                {lowStock.map(item => {
-                                    const cat = SPARE_CATEGORIES.find(c => c.id === item.cat);
-                                    const reorderQty = Math.max(item.minStock * 2 - item.qty, item.minStock);
-                                    return (
-                                        <tr key={item.id}>
-                                            <td><div style={{ width: 36, height: 36, background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{cat?.icon}</div></td>
-                                            <td style={{ fontWeight: 500 }}>{item.name}</td>
-                                            <td className="tdim">{cat?.name}</td>
-                                            <td><span className="mono" style={{ color: item.status === "critical" ? "var(--red)" : "var(--gold)" }}>{item.qty}</span></td>
-                                            <td className="mono">{reorderQty}</td>
-                                            <td><span className={`b ${statusBadge[item.status]}`} style={{ fontSize: 9 }}>{statusLabel[item.status]}</span></td>
-                                            <td><button className="btn btp bts" style={{ fontSize: 10 }} onClick={() => setItems(p => p.map(x => x.id === item.id ? { ...x, qty: x.qty + reorderQty, status: "ok" } : x))}>Order Now</button></td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+                        {reorderQueue.length === 0 ? (
+                            <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>
+                                <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+                                <div style={{ fontFamily: "var(--fd)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>No Items in Reorder Queue</div>
+                                <div className="tiny">Click "Reorder" on any item card to add it here.</div>
+                            </div>
+                        ) : (
+                            <table>
+                                <thead><tr><th>Item Name</th><th>Category</th><th>Current Qty</th><th>Reorder Qty</th><th>Status</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    {reorderQueue.map(r => {
+                                        const item = items.find(i => i.id === r.itemId);
+                                        if (!item) return null;
+                                        const cat = SPARE_CATEGORIES.find(c => c.id === item.cat);
+                                        return (
+                                            <tr key={item.id}>
+                                                <td style={{ fontWeight: 500 }}>{item.name}</td>
+                                                <td className="tdim">{cat?.icon} {cat?.name}</td>
+                                                <td><span className="mono" style={{ color: item.status === "critical" ? "var(--red)" : "var(--gold)" }}>{item.qty}</span></td>
+                                                <td>
+                                                    <input 
+                                                        type="number" 
+                                                        className="fi" 
+                                                        style={{ width: 80, fontSize: 12 }} 
+                                                        min={1} 
+                                                        value={r.qty} 
+                                                        onChange={e => updateReorderQty(item.id, parseInt(e.target.value) || 1)} 
+                                                    />
+                                                </td>
+                                                <td><span className={`b ${statusBadge[item.status]}`} style={{ fontSize: 9 }}>{statusLabel[item.status]}</span></td>
+                                                <td>
+                                                    <div style={{ display: "flex", gap: 6 }}>
+                                                        <button className="btn btp bts" style={{ fontSize: 10 }} onClick={() => placeReorder(item.id)}>Order</button>
+                                                        <button className="btn btd bts" style={{ fontSize: 10 }} onClick={() => removeFromReorderQueue(item.id)}>✕</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+
 
             {/* Edit Modal */}
             {showEdit && <SpareFormModal title={`Edit: ${showEdit.name}`} data={showEdit} setData={setShowEdit} onSave={saveEdit} onClose={() => setShowEdit(null)} />}
