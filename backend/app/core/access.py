@@ -23,7 +23,7 @@ DEFAULT_MEMBER_TABS = ["overview"]
 
 
 def normalize_tenant_settings(settings):
-    normalized = dict(settings or {})
+    normalized = deepcopy(settings or {})
     normalized.setdefault("max_users", 5)
     normalized.setdefault("max_machines", 2)
     normalized.setdefault("contact_email", "")
@@ -64,3 +64,4 @@ def clear_user_tabs(settings, user_id):
     normalized = normalize_tenant_settings(settings)
     normalized["member_access"].pop(str(user_id), None)
     return normalized
+from copy import deepcopy

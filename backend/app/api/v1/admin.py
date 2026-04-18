@@ -96,18 +96,6 @@ def serialize_member(user: User, tenant: Tenant):
             "tenant_id": str(tenant.id),
             "allowed_tabs": ["overview"],  # Default fallback
         }
-    except Exception as e:
-        print(f"DEBUG serialize_member ERROR: {str(e)}")
-        # Fallback if there's any issue with settings/tabs
-        return {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role,
-            "is_active": user.is_active,
-            "tenant_id": tenant.id,
-            "allowed_tabs": ["overview"],  # Default fallback
-        }
 
 
 @router.post("/tenants", response_model=TenantOut)
@@ -151,7 +139,7 @@ def create_tenant(
             id=str(uuid.uuid4()),
             email=data.admin_email,
             full_name=f"{data.name} Admin",
-            hashed_password=get_password_hash(data.admin_password),
+            password_hash=get_password_hash(data.admin_password),
             role="admin",
             tenant_id=tenant_id,
             is_active=True,
@@ -171,7 +159,7 @@ def create_tenant(
 def list_tenants(ctx: CurrentTenant, db: Session = Depends(get_db)):
     ensure_super_admin(ctx)
     try:
-        tenants = db.query(Tenant).order_by(Tenant.created_at.desc()).all()
+        tenants = db.query(Tenant).order_by(Tenant.name.asc()).all()
         return [serialize_tenant(tenant) for tenant in tenants]
     except Exception as e:
         return {"error": str(e), "type": type(e).__name__}
@@ -213,7 +201,7 @@ def reset_company_password(
     if not new_password:
         new_password = f"Admin{tenant_id[:8].upper()}{str(uuid.uuid4())[:4]}"
 
-    admin_user.hashed_password = get_password_hash(new_password)
+    admin_user.password_hash = get_password_hash(new_password)
 
     db.commit()
 

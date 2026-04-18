@@ -252,14 +252,17 @@ export function Admin({ session, onSessionRefresh }) {
 
     async function handleUpdateMember(nextMember) {
         try {
-            await api.updateUser(nextMember.id, {
+            const updatedUser = await api.updateUser(nextMember.id, {
                 role: nextMember.role,
                 is_active: nextMember.is_active,
                 allowed_tabs: nextMember.allowed_tabs || [],
             });
+            setUsers(prevUsers => prevUsers.map(user => user.id === updatedUser.id ? updatedUser : user));
+            if (selectedCompany && updatedUser.tenant_id === selectedCompany.id) {
+                setSelectedCompany(prev => prev ? { ...prev } : prev);
+            }
             setShowAccessEditor(false);
             setEditingMember(null);
-            await loadData();
             if (onSessionRefresh && nextMember.id === session?.id) onSessionRefresh();
         } catch (err) {
             alert(err.message || "Failed to update member.");

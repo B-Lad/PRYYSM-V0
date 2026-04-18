@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.core.access import get_user_tabs, normalize_tenant_settings, set_user_tabs
 from app.core.database import get_db
@@ -34,15 +34,17 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-def get_tenant(db: Session, tenant_id: str | None):
+def get_tenant(db: Session, tenant_id: Optional[str]):
     if not tenant_id:
         return None
     return db.query(Tenant).filter(Tenant.id == tenant_id).first()
 
 
-def serialize_user(user: User, tenant: Tenant | None = None):
+def serialize_user(user: User, tenant: Optional[Tenant] = None):
     resolved_tenant = tenant or get_tenant_object(user)
-    settings = normalize_tenant_settings(resolved_tenant.settings if resolved_tenant else {})
+    settings = normalize_tenant_settings(
+        resolved_tenant.settings if resolved_tenant else {}
+    )
     return {
         "id": user.id,
         "email": user.email,
@@ -54,9 +56,11 @@ def serialize_user(user: User, tenant: Tenant | None = None):
     }
 
 
-def serialize_session(user: User, tenant: Tenant | None = None):
+def serialize_session(user: User, tenant: Optional[Tenant] = None):
     resolved_tenant = tenant or get_tenant_object(user)
-    settings = normalize_tenant_settings(resolved_tenant.settings if resolved_tenant else {})
+    settings = normalize_tenant_settings(
+        resolved_tenant.settings if resolved_tenant else {}
+    )
     return {
         "id": str(user.id),
         "email": user.email,
@@ -75,7 +79,7 @@ def get_tenant_object(user: User):
     return getattr(user, "_tenant", None)
 
 
-def attach_tenant(user: User, tenant: Tenant | None):
+def attach_tenant(user: User, tenant: Optional[Tenant]):
     setattr(user, "_tenant", tenant)
     return user
 
@@ -84,7 +88,7 @@ def attach_tenant(user: User, tenant: Tenant | None):
 def login(req: UserLogin, db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == req.email).first()
-        if not user or not verify_password(req.password, user.hashed_password):
+        if not user or not verify_password(req.password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -158,7 +162,7 @@ def register(
         new_user = User(
             email=user_data.email,
             full_name=user_data.full_name,
-            hashed_password=get_password_hash(user_data.password),
+            password_hash=get_password_hash(user_data.password),
             role=user_data.role,
             tenant_id=target_tenant.id,
             is_active=True,
@@ -194,14 +198,13 @@ def get_current_user(ctx: CurrentTenant, db: Session = Depends(get_db)):
 @router.get("/users", response_model=List[UserOut])
 def get_users(ctx: CurrentTenant, db: Session = Depends(get_db)):
     if ctx.role != "super_admin":
-        raise HTTPException(status_code=403, detail="Only super admin can view all users")
+        raise HTTPException(
+            status_code=403, detail="Only super admin can view all users"
+        )
 
     users = db.query(User).all()
     tenants = {tenant.id: tenant for tenant in db.query(Tenant).all()}
-    return [
-        serialize_user(user, tenants.get(user.tenant_id))
-        for user in users
-    ]
+    return [serialize_user(user, tenants.get(user.tenant_id)) for user in users]
 
 
 @router.put("/users/{user_id}", response_model=UserOut)
@@ -217,7 +220,9 @@ def update_user(
 
     if ctx.role == "admin":
         if str(user.tenant_id) != ctx.tenant_id:
-            raise HTTPException(status_code=403, detail="Cannot edit users from another company")
+            raise HTTPException(
+                status_code=403, detail="Cannot edit users from another company"
+            )
         if user.role in {"admin", "super_admin"}:
             raise HTTPException(status_code=403, detail="Cannot edit admin users")
         if user_data.role in {"admin", "super_admin"}:
@@ -256,14 +261,14 @@ def change_password(
     user = db.query(User).filter(User.id == ctx.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not verify_password(body.current_password, user.hashed_password):
+    if not verify_password(body.current_password, user.password_hash):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     if len(body.new_password) < 8:
         raise HTTPException(
             status_code=400, detail="New password must be at least 8 characters"
         )
 
-    user.hashed_password = get_password_hash(body.new_password)
+    user.password_hash = get_password_hash(body.new_password)
     db.commit()
     return {"message": "Password updated successfully"}
 
@@ -300,15 +305,13 @@ def set_user_password(
                 status_code=403, detail="Not allowed to reset another user's password"
             )
 
-    user.hashed_password = get_password_hash(body.new_password)
+    user.password_hash = get_password_hash(body.new_password)
     db.commit()
     return {"message": "Password updated successfully"}
 
 
 @router.get("/validate-token", response_model=SessionOut)
-def validate_token(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
-):
+def validate_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     payload = decode_access_token(token)
     user = db.query(User).filter(User.id == payload.get("sub")).first()
     if user is None:
