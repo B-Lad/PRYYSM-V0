@@ -212,39 +212,6 @@ export function Admin({ session, onSessionRefresh }) {
         }
     }
 
-        try {
-            if (editingCompany) {
-                await api.updateTenant(editingCompany.id, {
-                    name: companyForm.name,
-                    slug: companyForm.slug,
-                    contact_email: companyForm.contact_email,
-                    max_users: Number(companyForm.max_users),
-                    max_machines: Number(companyForm.max_machines),
-                });
-            } else {
-                if (!companyForm.admin_email || !companyForm.admin_password) {
-                    alert("Please add the company admin email and password.");
-                    return;
-                }
-                await api.createTenant({
-                    ...companyForm,
-                    max_users: Number(companyForm.max_users),
-                    max_machines: Number(companyForm.max_machines),
-                });
-            }
-            setShowCompanyModal(false);
-            setEditingCompany(null);
-            setCompanyForm(EMPTY_COMPANY);
-            await loadData();
-            if (selectedCompany) {
-                const refreshed = await api.getTenant(selectedCompany.id);
-                setSelectedCompany(refreshed);
-            }
-        } catch (err) {
-            alert(err.message || "Failed to save company.");
-        }
-    }
-
     async function handleManageCompany(company) {
         try {
             const [profile, members] = await Promise.all([
