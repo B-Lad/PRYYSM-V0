@@ -71,14 +71,7 @@ function SpareFormModal({ title, data, setData, onSave, onClose }) {
                     </div>
                     <div className="mb12">
                         <label className="fl">Item Image</label>
-                        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                            {data.img ? (
-                                <img src={data.img} alt={data.name} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: "var(--r2)", border: "1px solid var(--border)" }} />
-                            ) : (
-                                <div style={{ width: 80, height: 80, background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{SPARE_CATEGORIES.find(c => c.id === data.cat)?.icon || "◇"}</div>
-                            )}
-                            <ImageUpload onUpload={(url) => setData(p => ({ ...p, img: url }))} />
-                        </div>
+                        <ImageUpload onUpload={(url) => setData(p => ({ ...p, img: url }))} />
                     </div>
                     <div className="frow">
                         <div className="fg"><label className="fl">Quantity *</label><input className="fi" type="number" min={0} value={data.qty} onChange={e => setData(p => ({ ...p, qty: +e.target.value }))} /></div>
