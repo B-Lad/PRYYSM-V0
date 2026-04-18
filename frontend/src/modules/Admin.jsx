@@ -163,11 +163,17 @@ export function Admin({ session, onSessionRefresh }) {
     }
 
     async function handleResetCompanyPassword(company) {
-        if (!confirm(`Reset password for ${company.name} admin? A new password will be generated.`)) return;
+        const newPassword = prompt(`Enter new password for ${company.name} admin:`);
+        if (!newPassword) return;
+
+        if (newPassword.length < 6) {
+            alert("Password must be at least 6 characters long.");
+            return;
+        }
 
         try {
-            const result = await api.resetCompanyPassword(company.id);
-            alert(`Password reset successful! New password: ${result.new_password}\n\nPlease save this password securely.`);
+            const result = await api.resetCompanyPassword(company.id, { password: newPassword });
+            alert(`Password reset successful! New password has been set.\n\nPlease inform the admin user of the new password.`);
         } catch (err) {
             alert("Failed to reset password: " + err.message);
         }

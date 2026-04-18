@@ -176,7 +176,10 @@ def get_tenant(tenant_id: str, ctx: CurrentTenant, db: Session = Depends(get_db)
 
 @router.post("/tenant/{tenant_id}/reset-password")
 def reset_company_password(
-    tenant_id: str, ctx: CurrentTenant, db: Session = Depends(get_db)
+    tenant_id: str,
+    password_data: dict,
+    ctx: CurrentTenant,
+    db: Session = Depends(get_db),
 ):
     ensure_super_admin(ctx)
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -193,8 +196,11 @@ def reset_company_password(
             status_code=404, detail="No admin user found for this company"
         )
 
-    # Generate new password
-    new_password = f"Admin{tenant_id[:8].upper()}{str(uuid.uuid4())[:4]}"
+    # Use provided password or generate new one
+    new_password = password_data.get("password")
+    if not new_password:
+        new_password = f"Admin{tenant_id[:8].upper()}{str(uuid.uuid4())[:4]}"
+
     admin_user.hashed_password = get_password_hash(new_password)
 
     db.commit()
@@ -250,14 +256,17 @@ def update_tenant(
     return serialize_tenant(tenant)
 
 
-@router.get("/tenant/{tenant_id}/users", response_model=list[UserOut])
+@router.get("/tenant/{tenant_id}/users")
 def get_tenant_users(tenant_id: str, ctx: CurrentTenant, db: Session = Depends(get_db)):
     ensure_super_admin(ctx)
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     users = db.query(User).filter(User.tenant_id == tenant_id).all()
-    return [serialize_member(user, tenant) for user in users]
+    try:
+        return [serialize_member(user, tenant) for user in users]
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
 
 
 @router.get("/company/profile", response_model=TenantOut)
