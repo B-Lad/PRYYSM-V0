@@ -388,6 +388,12 @@ export function SpareStores() {
                                         );
                                     })}
 
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Edit Modal */}
             {showEdit && <SpareFormModal title={`Edit: ${showEdit.name}`} data={showEdit} setData={setShowEdit} onSave={saveEdit} onClose={() => setShowEdit(null)} />}
