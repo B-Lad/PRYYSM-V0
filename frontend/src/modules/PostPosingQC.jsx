@@ -1,6 +1,41 @@
 import React, { useState } from "react";
 import { Tabs } from '../components/atoms.jsx';
-import { WOS } from '../data/seed.jsx';
+import { WOS, LC_SEED, PROJECTS } from '../data/seed.jsx';
+
+function getProjectForWO(wo) {
+    if (!wo) return null;
+    const lc = LC_SEED.find(p => p.id === wo.project);
+    if (lc) return lc;
+    const proj = PROJECTS.find(p => p.id === wo.project);
+    if (proj) return { ...proj, imageUrl: null };
+    return null;
+}
+
+function TechImage({ tech, size = 80 }) {
+    const colors = {
+        FDM: { bg: "3B82F6", text: "FDM" },
+        SLA: { bg: "8B5CF6", text: "SLA" },
+        SLS: { bg: "10B981", text: "SLS" },
+    };
+    const c = colors[tech] || { bg: "6B7280", text: tech || "?" };
+    return (
+        <div style={{
+            width: size,
+            height: size,
+            borderRadius: "var(--r2)",
+            background: `linear-gradient(135deg, ${c.bg}dd 0%, ${c.bg}88 100%)`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+            border: "1px solid var(--border)",
+            flexShrink: 0
+        }}>
+            <span style={{ fontSize: size * 0.35, marginBottom: 2 }}>🏭</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: "#fff", fontFamily: "var(--fm)" }}>{c.text}</span>
+        </div>
+    );
+}
 
 const POST_PROCESSING_TASKS = {
     FDM: [
@@ -348,7 +383,7 @@ export function PostPosingQC() {
             {/* Task List */}
             {selectedWO ? (
                 <div>
-                    {/* WO Info Strip */}
+                    {/* WO Info Strip with Project Image */}
                     <div style={{ 
                         background: "var(--bg3)", 
                         border: "1px solid var(--border)", 
@@ -356,22 +391,41 @@ export function PostPosingQC() {
                         padding: "12px 16px", 
                         marginBottom: 16,
                         display: "flex",
-                        gap: 24,
-                        flexWrap: "wrap"
+                        gap: 20,
+                        flexWrap: "wrap",
+                        alignItems: "flex-start"
                     }}>
-                        {[
-                            ["WO", selectedWO.id],
-                            ["Part", selectedWO.part],
-                            ["Tech", selectedWO.tech],
-                            ["Qty", selectedWO.qty + " pcs"],
-                            ["Status", selectedWO.status],
-                            ["Due", selectedWO.due]
-                        ].map(([k, v]) => (
-                            <div key={k}>
-                                <div className="tiny mb2" style={{ color: "var(--text3)" }}>{k}</div>
-                                <div style={{ fontSize: 12.5, fontWeight: 600 }}>{v}</div>
+                        {/* Project Image */}
+                        <TechImage tech={selectedWO.tech} size={80} />
+                        
+                        {/* WO and Project Info */}
+                        <div style={{ flex: 1, minWidth: 200 }}>
+                            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                                {[
+                                    ["WO", selectedWO.id],
+                                    ["Part", selectedWO.part],
+                                    ["Tech", selectedWO.tech],
+                                    ["Qty", selectedWO.qty + " pcs"],
+                                    ["Status", selectedWO.status],
+                                    ["Due", selectedWO.due]
+                                ].map(([k, v]) => (
+                                    <div key={k}>
+                                        <div className="tiny mb2" style={{ color: "var(--text3)" }}>{k}</div>
+                                        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{v}</div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                            {(() => {
+                                const proj = getProjectForWO(selectedWO);
+                                return proj ? (
+                                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                                        <div className="tiny mb2" style={{ color: "var(--text3)" }}>Project</div>
+                                        <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{proj.name}</div>
+                                        <div className="tiny" style={{ color: "var(--text2)" }}>👤 {proj.owner}{proj.dept ? ` · ${proj.dept}` : ""}</div>
+                                    </div>
+                                ) : null;
+                            })()}
+                        </div>
                     </div>
 
                     {/* Progress Bar */}
