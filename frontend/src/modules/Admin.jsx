@@ -321,7 +321,6 @@ export function Admin({ session, onSessionRefresh }) {
                                                 <td>{company.max_machines}</td>
                                         <td style={{ textAlign: "right" }}>
                                             <button type="button" className="btn btg bts" onClick={() => openCreateCompanyModal(company)}>Edit</button>
-                                            <button type="button" className="btn btg bts" style={{ marginLeft: 8 }} onClick={() => openPasswordResetModal({ type: "company_admin", company })}>Reset Admin Password</button>
                                             <button type="button" className="btn btp bts" style={{ marginLeft: 8 }} onClick={() => { setTab("users"); setSelectedCompany(company); }}>Open In Users</button>
                                         </td>
                                             </tr>
@@ -354,7 +353,7 @@ export function Admin({ session, onSessionRefresh }) {
                                         <td><AccessSummary tabs={user.allowed_tabs} /></td>
                                         <td><span className={`b ${user.is_active ? "brun" : "bidle"}`}>{user.is_active ? "Active" : "Inactive"}</span></td>
                                         <td style={{ textAlign: "right" }}>
-                                            {user.role !== "super_admin" && (
+                                            {!["super_admin", "admin"].includes(user.role) && (
                                                 <button type="button" className="btn btg bts" onClick={() => openAccessEditor(user)}>Access Matrix</button>
                                             )}
                                             {user.role !== "super_admin" && (
@@ -454,13 +453,6 @@ export function Admin({ session, onSessionRefresh }) {
                     <div className="fg mb8"><label className="fl">Company Name</label><input className="fi" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} /></div>
                     <div className="fg mb8"><label className="fl">Slug</label><input className="fi" value={companyForm.slug} onChange={e => setCompanyForm({ ...companyForm, slug: e.target.value })} /></div>
                     <div className="fg mb8"><label className="fl">Contact Email</label><input className="fi" type="email" value={companyForm.contact_email} onChange={e => setCompanyForm({ ...companyForm, contact_email: e.target.value })} /></div>
-                    {editingCompany && (
-                        <div className="fg mb8">
-                            <label className="fl">Admin Password Reset</label>
-                            <button type="button" className="btn btd bts" onClick={() => openPasswordResetModal({ type: "company_admin", company: editingCompany })} style={{ marginRight: 8 }}>Reset Admin Password</button>
-                            <span className="tiny">Set a custom new password for the company admin</span>
-                        </div>
-                    )}
                     {!editingCompany && (
                         <>
                             <div className="fg mb8"><label className="fl">Company Admin Email</label><input className="fi" type="email" value={companyForm.admin_email} onChange={e => setCompanyForm({ ...companyForm, admin_email: e.target.value })} /></div>
@@ -532,7 +524,7 @@ export function Admin({ session, onSessionRefresh }) {
                         </>
                     ) : (
                         <div className="card">
-                            <div className="cb">Company admins keep full company-level access, but they still cannot see the super-admin company registration list.</div>
+                            <div className="cb">Company admin access is fixed by role. Their admin panel is limited to their own company and does not include the super admin company-registration controls.</div>
                         </div>
                     )}
                 </Modal>
