@@ -66,9 +66,7 @@ export function Admin({ session, onSessionRefresh }) {
     const [users, setUsers] = useState([]);
     const [companies, setCompanies] = useState([]);
     const [tenant, setTenant] = useState(null);
-    const [companyMembers, setCompanyMembers] = useState([]);
     const [selectedCompany, setSelectedCompany] = useState(null);
-    const [showManageCompany, setShowManageCompany] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
     const [showMemberModal, setShowMemberModal] = useState(false);
     const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -183,9 +181,9 @@ export function Admin({ session, onSessionRefresh }) {
         }
 
         try {
-            if (passwordResetTarget?.type === "company_admin") {
+            if (passwordResetTarget?.type === "company_admin" && passwordResetTarget.company?.id) {
                 await api.resetCompanyPassword(passwordResetTarget.company.id, { password: passwordResetForm.new_password });
-            } else if (passwordResetTarget?.type === "member") {
+            } else if (passwordResetTarget?.user?.id) {
                 await api.setUserPassword(passwordResetTarget.user.id, { new_password: passwordResetForm.new_password });
             }
             setShowPasswordResetModal(false);
@@ -226,26 +224,8 @@ export function Admin({ session, onSessionRefresh }) {
             setEditingCompany(null);
             setCompanyForm(EMPTY_COMPANY);
             await loadData();
-            if (selectedCompany) {
-                const refreshed = await api.getTenant(selectedCompany.id);
-                setSelectedCompany(refreshed);
-            }
         } catch (err) {
             alert("Failed to save company: " + err.message);
-        }
-    }
-
-    async function handleManageCompany(company) {
-        try {
-            const members = await api.getTenantUsers(company.id);
-            setSelectedCompany(company);
-            setCompanyMembers(members);
-            setShowManageCompany(true);
-        } catch (err) {
-            setSelectedCompany(company);
-            setCompanyMembers([]);
-            setShowManageCompany(true);
-            alert(err.message || "Failed to load company members from backend.");
         }
     }
 
@@ -261,13 +241,7 @@ export function Admin({ session, onSessionRefresh }) {
             });
             setShowMemberModal(false);
             resetMemberForm("operator", [assignableTabs[0]?.id || "overview"]);
-            if (isCompanyAdmin) {
-                await loadData();
-            }
-            if (selectedCompany && memberTargetTenant === selectedCompany.id) {
-                const members = await api.getTenantUsers(selectedCompany.id);
-                setCompanyMembers(members);
-            }
+            await loadData();
             if (onSessionRefresh) onSessionRefresh();
         } catch (err) {
             alert(err.message || "Failed to create member.");
@@ -283,13 +257,7 @@ export function Admin({ session, onSessionRefresh }) {
             });
             setShowAccessEditor(false);
             setEditingMember(null);
-            if (isCompanyAdmin) {
-                await loadData();
-            }
-            if (selectedCompany) {
-                const members = await api.getTenantUsers(selectedCompany.id);
-                setCompanyMembers(members);
-            }
+            await loadData();
             if (onSessionRefresh && nextMember.id === session?.id) onSessionRefresh();
         } catch (err) {
             alert(err.message || "Failed to update member.");
@@ -304,13 +272,7 @@ export function Admin({ session, onSessionRefresh }) {
                 allowed_tabs: member.allowed_tabs || [],
             });
             setShowDeleteConfirm(null);
-            if (isCompanyAdmin) {
-                await loadData();
-            }
-            if (selectedCompany) {
-                const members = await api.getTenantUsers(selectedCompany.id);
-                setCompanyMembers(members);
-            }
+            await loadData();
         } catch (err) {
             alert(err.message || "Failed to deactivate member.");
         }
@@ -360,7 +322,7 @@ export function Admin({ session, onSessionRefresh }) {
                                         <td style={{ textAlign: "right" }}>
                                             <button type="button" className="btn btg bts" onClick={() => openCreateCompanyModal(company)}>Edit</button>
                                             <button type="button" className="btn btg bts" style={{ marginLeft: 8 }} onClick={() => openPasswordResetModal({ type: "company_admin", company })}>Reset Admin Password</button>
-                                            <button type="button" className="btn btd bts" style={{ marginLeft: 8 }} onClick={() => handleManageCompany(company)}>Access Control</button>
+                                            <button type="button" className="btn btp bts" style={{ marginLeft: 8 }} onClick={() => { setTab("users"); setSelectedCompany(company); }}>Open In Users</button>
                                         </td>
                                             </tr>
                                         ))}
@@ -373,12 +335,17 @@ export function Admin({ session, onSessionRefresh }) {
 
             {isSuperAdmin && tab === "users" && (
                 <div className="card">
-                    <div className="ch"><span className="ct">Global Users</span></div>
+                    <div className="ch">
+                        <span className="ct">Global Users{selectedCompany ? ` · ${selectedCompany.name}` : ""}</span>
+                        {selectedCompany && <button type="button" className="btn btg bts" onClick={() => setSelectedCompany(null)}>Clear Filter</button>}
+                    </div>
                     <div className="tw">
                         <table>
-                            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Company</th><th>Tabs</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Company</th><th>Tabs</th><th>Status</th><th>Actions</th></tr></thead>
                             <tbody>
-                                {users.map(user => (
+                                {users
+                                    .filter(user => !selectedCompany || user.tenant_id === selectedCompany.id)
+                                    .map(user => (
                                     <tr key={user.id}>
                                         <td>{user.full_name || "—"}</td>
                                         <td>{user.email}</td>
@@ -386,6 +353,17 @@ export function Admin({ session, onSessionRefresh }) {
                                         <td>{user.tenant_id || "—"}</td>
                                         <td><AccessSummary tabs={user.allowed_tabs} /></td>
                                         <td><span className={`b ${user.is_active ? "brun" : "bidle"}`}>{user.is_active ? "Active" : "Inactive"}</span></td>
+                                        <td style={{ textAlign: "right" }}>
+                                            {user.role !== "super_admin" && (
+                                                <button type="button" className="btn btg bts" onClick={() => openAccessEditor(user)}>Access Matrix</button>
+                                            )}
+                                            {user.role !== "super_admin" && (
+                                                <button type="button" className="btn btg bts" style={{ marginLeft: 8 }} onClick={() => openPasswordResetModal({ type: user.role === "admin" ? "company_admin" : "member", company: companies.find(company => company.id === user.tenant_id), user })}>Reset Password</button>
+                                            )}
+                                            {user.role !== "super_admin" && (
+                                                <button type="button" className="btn btd bts" style={{ marginLeft: 8 }} onClick={() => setShowDeleteConfirm(user)}>Deactivate</button>
+                                            )}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -411,6 +389,11 @@ export function Admin({ session, onSessionRefresh }) {
                             </div>
                         </div>
                     )}
+                    <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--border)", background: "var(--bg3)" }}>
+                        <div className="row">
+                            <button type="button" className="btn btg bts" onClick={() => openPasswordResetModal({ type: "member", user: session })}>Reset My Admin Password</button>
+                        </div>
+                    </div>
                     <div className="tw">
                         <table>
                             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tab Access</th><th>Status</th><th>Actions</th></tr></thead>
@@ -487,45 +470,6 @@ export function Admin({ session, onSessionRefresh }) {
                     <div className="frow">
                         <div className="fg"><label className="fl">Max Users</label><input className="fi" type="number" min="1" value={companyForm.max_users} onChange={e => setCompanyForm({ ...companyForm, max_users: e.target.value })} /></div>
                         <div className="fg"><label className="fl">Max Printers</label><input className="fi" type="number" min="1" value={companyForm.max_machines} onChange={e => setCompanyForm({ ...companyForm, max_machines: e.target.value })} /></div>
-                    </div>
-                </Modal>
-            )}
-
-            {showManageCompany && selectedCompany && (
-                <Modal title={`Manage: ${selectedCompany.name}`} onClose={() => setShowManageCompany(false)} wide>
-                    <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-                        <div className="card" style={{ padding: 12, minWidth: 160 }}><div className="tiny">Contact</div><div>{selectedCompany.contact_email || "—"}</div></div>
-                        <div className="card" style={{ padding: 12, minWidth: 160 }}><div className="tiny">Max Users</div><div>{selectedCompany.max_users}</div></div>
-                        <div className="card" style={{ padding: 12, minWidth: 160 }}><div className="tiny">Max Printers</div><div>{selectedCompany.max_machines}</div></div>
-                    </div>
-                    <div className="ch" style={{ paddingLeft: 0, paddingRight: 0, background: "transparent", borderBottom: "none" }}>
-                        <span className="ct">Company Members</span>
-                        <div className="row">
-                            <button type="button" className="btn btg bts" onClick={() => openCreateCompanyModal(selectedCompany)}>Edit Limits</button>
-                            <button type="button" className="btn btg bts" onClick={() => openPasswordResetModal({ type: "company_admin", company: selectedCompany })}>Reset Admin Password</button>
-                            <button type="button" className="btn btp bts" onClick={() => openCreateMemberModal(selectedCompany.id, selectedCompany)}>+ Add Member</button>
-                        </div>
-                    </div>
-                    <div className="tw">
-                        <table>
-                            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tab Access</th><th>Status</th><th>Actions</th></tr></thead>
-                            <tbody>
-                                {companyMembers.map(member => (
-                                    <tr key={member.id}>
-                                        <td>{member.full_name || "—"}</td>
-                                        <td>{member.email}</td>
-                                        <td>{member.role}</td>
-                                        <td><AccessSummary tabs={member.allowed_tabs} /></td>
-                                        <td><span className={`b ${member.is_active ? "brun" : "bidle"}`}>{member.is_active ? "Active" : "Inactive"}</span></td>
-                                        <td style={{ textAlign: "right" }}>
-                                            <button type="button" className="btn btg bts" onClick={() => openAccessEditor(member)}>Access Matrix</button>
-                                            <button type="button" className="btn btg bts" style={{ marginLeft: 8 }} onClick={() => openPasswordResetModal({ type: "member", user: member })}>Reset Password</button>
-                                            <button type="button" className="btn btd bts" style={{ marginLeft: 8 }} onClick={() => setShowDeleteConfirm(member)}>Deactivate</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
                     </div>
                 </Modal>
             )}
