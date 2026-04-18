@@ -232,6 +232,16 @@ export function PostPosingQC() {
     const [ppSubmitted, setPpSubmitted] = useState({}); // { woId: true }
     const [qcSubmitted, setQcSubmitted] = useState({}); // { woId: true }
 
+    // Compute per-tab stats
+    const ppPending = postProcWOs.filter(w => !ppSubmitted[w.id]).length;
+    const ppDone = postProcWOs.filter(w => ppSubmitted[w.id]).length;
+    const qcPending = qcWOs.filter(w => !qcSubmitted[w.id]).length;
+    const qcDone = qcWOs.filter(w => qcSubmitted[w.id]).length;
+    
+    const activePending = activeTab === "postposing" ? ppPending : qcPending;
+    const activeDone = activeTab === "postposing" ? ppDone : qcDone;
+    const activeTotal = activeTab === "postposing" ? postProcWOs.length : qcWOs.length;
+
     // Get tasks for selected WO
     const currentTasks = activeTab === "postposing" 
         ? (POST_PROCESSING_TASKS[selectedWO?.tech] || [])
@@ -384,29 +394,28 @@ export function PostPosingQC() {
             {/* Summary Cards */}
             <div className="g g4 mb16">
                 <div className="kpi cy">
-                    <div className="kl">Post-Processing Queue</div>
-                    <div className="kv">{postProcWOs.length}</div>
+                    <div className="kl">Post Posing Pending</div>
+                    <div className="kv" style={{ color: ppPending > 0 ? "var(--yellow)" : "var(--green)" }}>{ppPending}</div>
                 </div>
                 <div className="kpi cc">
-                    <div className="kl">QC Inspection Queue</div>
-                    <div className="kv">{qcWOs.length}</div>
+                    <div className="kl">QC Pending</div>
+                    <div className="kv" style={{ color: qcPending > 0 ? "var(--yellow)" : "var(--green)" }}>{qcPending}</div>
                 </div>
                 <div className="kpi cb">
-                    <div className="kl">Tasks Completed Today</div>
-                    <div className="kv">
-                        {Object.values(ppTasks).concat(Object.values(qcTasks))
-                            .reduce((sum, woTasks) => 
-                                sum + Object.values(woTasks).filter(t => t.done).length, 0
-                            )}
-                    </div>
+                    <div className="kl">PP Completed</div>
+                    <div className="kv" style={{ color: ppDone > 0 ? "var(--green)" : undefined }}>{ppDone}</div>
+                </div>
+                <div className="kpi cg">
+                    <div className="kl">QC Completed</div>
+                    <div className="kv" style={{ color: qcDone > 0 ? "var(--green)" : undefined }}>{qcDone}</div>
                 </div>
             </div>
 
             {/* Tabs */}
             <Tabs 
                 tabs={[
-                    { id: "postposing", label: `① Post Posing (${postProcWOs.length})` }, 
-                    { id: "qc", label: `② QC Inspection (${qcWOs.length})` }
+                    { id: "postposing", label: `① Post Posing (${ppPending} pending, ${ppDone} done)` }, 
+                    { id: "qc", label: `② QC Inspection (${qcPending} pending, ${qcDone} done)` }
                 ]} 
                 active={activeTab} 
                 onChange={setActiveTab} 
@@ -416,7 +425,7 @@ export function PostPosingQC() {
             <div className="card mb16" style={{ boxShadow: "none", border: "1px solid var(--border)" }}>
                 <div style={{ padding: "12px 16px" }}>
                     <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, marginBottom: 10 }}>
-                        Select Work Order
+                        Select Work Order {activeTab === "postposing" ? "(Post Posing)" : "(QC Inspection)"}
                     </div>
                     <select 
                         className="fsel" 
@@ -427,11 +436,19 @@ export function PostPosingQC() {
                         style={{ width: "100%", maxWidth: 600 }}
                     >
                         <option value="">-- Choose a Work Order --</option>
-                        {(activeTab === "postposing" ? postProcWOs : qcWOs).map(wo => (
-                            <option key={wo.id} value={wo.id}>
-                                {wo.id} - {wo.part} ({wo.tech}, {wo.qty} pcs)
-                            </option>
-                        ))}
+                        {(activeTab === "postposing" ? postProcWOs : qcWOs).map(wo => {
+                            const isSubmitted = activeTab === "postposing" ? ppSubmitted[wo.id] : qcSubmitted[wo.id];
+                            const taskState = activeTab === "postposing" ? ppTasks[wo.id] : qcTasks[wo.id];
+                            const doneCount = taskState ? Object.values(taskState).filter(t => t.done).length : 0;
+                            const totalTasks = activeTab === "postposing" 
+                                ? (POST_PROCESSING_TASKS[wo.tech]?.length || 0)
+                                : (QC_INSPECTION_TASKS[wo.tech]?.length || 0);
+                            return (
+                                <option key={wo.id} value={wo.id} style={{ color: isSubmitted ? "var(--green)" : undefined }}>
+                                    {wo.id} - {wo.part} ({wo.tech}) {isSubmitted ? "✓ Submitted" : doneCount > 0 ? `[${doneCount}/${totalTasks}]` : ""}
+                                </option>
+                            );
+                        })}
                     </select>
                 </div>
             </div>
