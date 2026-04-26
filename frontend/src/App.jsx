@@ -1,40 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import CSS from './styles.js';
 import { NAV } from './data/nav.js';
 import { useLive } from './hooks/useLive.js';
 import { useRealtimeNotifications } from './hooks/useNotifications.js';
 import { api } from './services/api.js';
 import { Modal } from './components/atoms.jsx';
-import { Overview } from './modules/Overview.jsx';
-import { PrintRequests } from './modules/PrintRequests.jsx';
-import { AMReview } from './modules/AMReview.jsx';
-import { Projects } from './modules/Projects.jsx';
-import { PrinterFleet } from './modules/PrinterFleet.jsx';
-import { PrintSchedule } from './modules/PrintSchedule.jsx';
-import { JobAllotment } from './modules/JobAllotment.jsx';
-import { RawMaterialInventory } from './modules/RawMaterialInventory.jsx';
-import { SpareStores } from './modules/SpareStores.jsx';
-import { PostPosingQC } from './modules/PostPosingQC.jsx';
-import { Flow } from './modules/Flow.jsx';
-import { Config } from './modules/Config.jsx';
-import { Admin } from './modules/Admin.jsx';
-import { Repository } from './modules/Repository.jsx';
-import { Login } from './modules/Login.jsx';
-import { TopBar } from './modules/TopBar.jsx';
+import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 
-class ErrorBoundary extends React.Component {
-    constructor(props) { super(props); this.state = { error: null }; }
-    static getDerivedStateFromError(e) { return { error: e }; }
-    render() {
-        if (this.state.error) return (
-            <div style={{ padding: 32, fontFamily: "monospace", background: "#fff", color: "#dc2626" }}>
-                <h2>⚠ Runtime Error</h2>
-                <pre>{this.state.error?.message}</pre>
-            </div>
-        );
-        return this.props.children;
-    }
-}
+const Overview = lazy(() => import('./modules/Overview.jsx').then(m => ({ default: m.Overview })));
+const PrintRequests = lazy(() => import('./modules/PrintRequests.jsx').then(m => ({ default: m.PrintRequests })));
+const AMReview = lazy(() => import('./modules/AMReview.jsx').then(m => ({ default: m.AMReview })));
+const Projects = lazy(() => import('./modules/Projects.jsx').then(m => ({ default: m.Projects })));
+const PrinterFleet = lazy(() => import('./modules/PrinterFleet.jsx').then(m => ({ default: m.PrinterFleet })));
+const PrintSchedule = lazy(() => import('./modules/PrintSchedule.jsx').then(m => ({ default: m.PrintSchedule })));
+const JobAllotment = lazy(() => import('./modules/JobAllotment.jsx').then(m => ({ default: m.JobAllotment })));
+const RawMaterialInventory = lazy(() => import('./modules/RawMaterialInventory.jsx').then(m => ({ default: m.RawMaterialInventory })));
+const SpareStores = lazy(() => import('./modules/SpareStores.jsx').then(m => ({ default: m.SpareStores })));
+const PostPosingQC = lazy(() => import('./modules/PostPosingQC.jsx').then(m => ({ default: m.PostPosingQC })));
+const Flow = lazy(() => import('./modules/Flow.jsx').then(m => ({ default: m.Flow })));
+const Config = lazy(() => import('./modules/Config.jsx').then(m => ({ default: m.Config })));
+const Admin = lazy(() => import('./modules/Admin.jsx').then(m => ({ default: m.Admin })));
+const Repository = lazy(() => import('./modules/Repository.jsx').then(m => ({ default: m.Repository })));
+const Login = lazy(() => import('./modules/Login.jsx').then(m => ({ default: m.Login })));
+const TopBar = lazy(() => import('./modules/TopBar.jsx').then(m => ({ default: m.TopBar })));
 
 export default function App() {
     const [section, setSection] = useState("overview");
@@ -169,7 +157,11 @@ export default function App() {
     }
 
     if (loading) return <div style={{ background: "var(--bg1)", height: "100vh" }} />;
-    if (!isAuthenticated) return <Login onLogin={handleLogin} />;
+    if (!isAuthenticated) return (
+        <Suspense fallback={<div style={{ height: "100vh", background: "var(--bg1)" }} />}>
+            <Login onLogin={handleLogin} />
+        </Suspense>
+    );
 
     const sections = {
         overview: <Overview machines={machines} setSection={setSection} />,
@@ -198,23 +190,39 @@ export default function App() {
                 <div className="app">
                     <aside className={`sb ${open ? "open" : "col"}`}>
                         <div className="sb-brand" onClick={() => setOpen(p => !p)}>
-                            <div className="sb-mark" style={{ fontFamily: "var(--fd)", fontSize: 15, letterSpacing: "-1px" }}>Pr</div>
-                            {open && <div><div className="sb-name">Pryy<span>sm</span></div><div className="sb-sub">AM Operations</div></div>}
+                            <img 
+                                src={open ? "/logo-light.svg" : "/favicon.svg"} 
+                                alt="Pryysm Logo" 
+                                style={{ 
+                                    width: open ? "160px" : "32px",
+                                    height: "auto",
+                                    transition: "all .2s"
+                                }} 
+                            />
                         </div>
                         <nav className="sb-nav">
                             {visibleNav.map(item => (
-                                <button key={item.id} className={`nav-btn ${section === item.id ? "act" : ""}`} onClick={() => setSection(item.id)}>
+                                <button key={item.id} className={`nav-btn ${section === item.id ? "act" : ""}`} onClick={() => { setSection(item.id); if(window.innerWidth <= 800) setOpen(false); }}>
                                     <span className="nav-icon">{item.icon}</span>
                                     {open && <span style={{ flex: 1 }}>{item.label}</span>}
                                 </button>
                             ))}
                         </nav>
                     </aside>
+                    {open && <div className="mobile-menu-btn" style={{position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1999}} onClick={() => setOpen(false)}></div>}
 
                     <div className="main">
-                        <TopBar onLogout={handleLogout} onChangePassword={() => setShowPasswordModal(true)} session={session} />
+                        <Suspense fallback={<header style={{ height: 60, background: "#fff", borderBottom: "1px solid #e2e8f0" }} />}>
+                            <TopBar onLogout={handleLogout} onChangePassword={() => setShowPasswordModal(true)} session={session} toggleSidebar={() => setOpen(p => !p)} />
+                        </Suspense>
                         <main className="page">
-                            <div className="pinner">{sections[section] || <div className="card"><div className="cb">You do not have access to this section.</div></div>}</div>
+                            <div className="pinner">
+                                <ErrorBoundary>
+                                    <Suspense fallback={<div style={{ padding: 24, color: "var(--text3)", fontFamily: "var(--fm)", fontSize: 11 }}>LOADING MODULE...</div>}>
+                                        {sections[section] || <div className="card"><div className="cb">You do not have access to this section.</div></div>}
+                                    </Suspense>
+                                </ErrorBoundary>
+                            </div>
                         </main>
                     </div>
                 </div>

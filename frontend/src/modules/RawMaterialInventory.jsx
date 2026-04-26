@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS } from '../data/seed.jsx';
 import { Modal } from '../components/atoms.jsx';
+import { ReorderModal } from '../components/ReorderModal.jsx';
 
 export const RMI_STATUS_COLOR = { ok: 'var(--green)', low: 'var(--gold)', critical: 'var(--red)' };
 export const RMI_STATUS_BADGE = { ok: 'brun', low: 'bwait', critical: 'berr' };
@@ -8,7 +9,7 @@ export const RMI_STATUS_LBL   = { ok: 'In Stock', low: 'Low Stock', critical: 'C
 
 
 
-function MatCard({ item, type, openEdit, setFilaments, setResins, setPowders, computeStatus, addToReorderQueue }) {
+function MatCard({ item, type, openEdit, setFilaments, setResins, setPowders, computeStatus, openReorderModal }) {
     const pct = Math.min((item.qty / Math.max((item.minQty || 1) * 3, 1)) * 100, 100);
     const barColor = RMI_STATUS_COLOR[item.status];
     const unit = item.unit || (type === "resin" ? "L" : type === "powder" ? "kg" : "spools");
@@ -41,13 +42,13 @@ function MatCard({ item, type, openEdit, setFilaments, setResins, setPowders, co
             </div>
             <div className="row" style={{ gap: 6 }}>
                 <button className="btn btg bts" style={{ flex: 1, justifyContent: "center", fontSize: 10 }} onClick={() => openEdit(type, item)}>✎ Edit / Add Stock</button>
-                <button className="btn bts" style={{ fontSize: 10, padding: "3px 10px", background: item.status === "critical" ? "var(--rdim)" : "var(--golddim)", color: item.status === "critical" ? "var(--red)" : "var(--gold)", border: `1px solid ${item.status === "critical" ? "rgba(220,38,38,.3)" : "rgba(184,134,11,.25)"}` }} onClick={() => addToReorderQueue(item, type)}>⟳ Reorder</button>
+                <button className="btn bts" style={{ fontSize: 10, padding: "3px 10px", background: item.status === "critical" ? "var(--rdim)" : "var(--golddim)", color: item.status === "critical" ? "var(--red)" : "var(--gold)", border: `1px solid ${item.status === "critical" ? "rgba(220,38,38,.3)" : "rgba(184,134,11,.25)"}` }} onClick={() => openReorderModal(item, type)}>⟳ Reorder</button>
             </div>
         </div>
     );
 }
 
-function MatTabContent({ items, type, typeLabel, search, setSearch, brandFilter, setBrandFilter, matFilter, setMatFilter, statusFilter, setStatusFilter, openEdit, openAdd, setFilaments, setResins, setPowders, computeStatus, addToReorderQueue }) {
+function MatTabContent({ items, type, typeLabel, search, setSearch, brandFilter, setBrandFilter, matFilter, setMatFilter, statusFilter, setStatusFilter, openEdit, openAdd, setFilaments, setResins, setPowders, computeStatus, openReorderModal }) {
     const filtered = items.filter(x => {
         if (search && !x.name.toLowerCase().includes(search.toLowerCase()) && !x.brand?.toLowerCase().includes(search.toLowerCase())) return false;
         if (brandFilter !== "all" && x.brand !== brandFilter) return false;
@@ -103,7 +104,7 @@ function MatTabContent({ items, type, typeLabel, search, setSearch, brandFilter,
                 ))}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 }}>
-                {filtered.map(item => <MatCard key={item.id} item={item} type={type} openEdit={openEdit} setFilaments={setFilaments} setResins={setResins} setPowders={setPowders} computeStatus={computeStatus} addToReorderQueue={addToReorderQueue} />)}
+                {filtered.map(item => <MatCard key={item.id} item={item} type={type} openEdit={openEdit} setFilaments={setFilaments} setResins={setResins} setPowders={setPowders} computeStatus={computeStatus} openReorderModal={openReorderModal} />)}
                 {filtered.length === 0 && <div style={{ gridColumn: "1/-1", textAlign: "center", padding: 40, color: "var(--text3)" }}>No items match your filters.</div>}
             </div>
         </div>
@@ -122,7 +123,9 @@ export function RawMaterialInventory() {
     const [brandFilter, setBrandFilter] = useState("all");
     const [matFilter, setMatFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
-    const [reorderQueue, setReorderQueue] = useState([]); // { itemId, type, qty }
+    const [reorderQueue, setReorderQueue] = useState([]); // { itemId, type, qty, name, unit }
+    const [orderHistory, setOrderHistory] = useState([]); // { itemId, name, qty, unit, type, orderedAt }
+    const [pendingReorder, setPendingReorder] = useState(null); // { item, type }
 
     // blank forms
     const blankF = { name: "", brand: "", type: "Standard", color: "#2563EB", code: "", sku: "", qty: 0, minQty: 2, reorder: 5, unit: "spools" };
@@ -138,12 +141,21 @@ export function RawMaterialInventory() {
 
     function computeStatus(qty, minQty) { return qty === 0 ? "critical" : qty <= minQty ? "low" : "ok"; }
 
-    function addToReorderQueue(item, type) {
-        const suggestedQty = item.reorder || item.minQty * 2 || item.minQty || 5;
+    function openReorderModal(item, type) {
+        setPendingReorder({ item, type });
+    }
+
+    function confirmReorder(qty) {
+        if (!pendingReorder) return;
+        const { item, type } = pendingReorder;
+        const unit = item.unit || (type === "resin" ? "L" : type === "powder" ? "kg" : "spools");
         setReorderQueue(prev => {
-            if (prev.find(r => r.itemId === item.id)) return prev;
-            return [...prev, { itemId: item.id, type, qty: suggestedQty }];
+            if (prev.find(r => r.itemId === item.id)) {
+                return prev.map(r => r.itemId === item.id ? { ...r, qty, unit } : r);
+            }
+            return [...prev, { itemId: item.id, type, qty, name: item.name, unit }];
         });
+        setPendingReorder(null);
         setTab("reorder");
     }
 
@@ -166,10 +178,20 @@ export function RawMaterialInventory() {
         } else {
             setPowders(p => p.map(x => x.id === itemId ? { ...x, qty: x.qty + add, status: computeStatus(x.qty + add, x.minQty) } : x));
         }
+        const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+        setOrderHistory(prev => [...prev, {
+            itemId: reorderItem.itemId,
+            name: reorderItem.name,
+            qty: reorderItem.qty,
+            unit: reorderItem.unit,
+            type: reorderItem.type,
+            orderedAt: now
+        }]);
         removeFromReorderQueue(itemId);
     }
 
     function placeAllReorders() {
+        const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
         reorderQueue.forEach(r => {
             const add = r.qty;
             if (r.type === "filament") {
@@ -179,6 +201,14 @@ export function RawMaterialInventory() {
             } else {
                 setPowders(p => p.map(x => x.id === r.itemId ? { ...x, qty: x.qty + add, status: computeStatus(x.qty + add, x.minQty) } : x));
             }
+            setOrderHistory(prev => [...prev, {
+                itemId: r.itemId,
+                name: r.name,
+                qty: r.qty,
+                unit: r.unit,
+                type: r.type,
+                orderedAt: now
+            }]);
         });
         setReorderQueue([]);
     }
@@ -212,7 +242,7 @@ export function RawMaterialInventory() {
         setShowAdd(true);
     }
 
-    const sharedProps = { openEdit, openAdd, setFilaments, setResins, setPowders, computeStatus, search, setSearch, brandFilter, setBrandFilter, matFilter, setMatFilter, statusFilter, setStatusFilter, addToReorderQueue };
+    const sharedProps = { openEdit, openAdd, setFilaments, setResins, setPowders, computeStatus, search, setSearch, brandFilter, setBrandFilter, matFilter, setMatFilter, statusFilter, setStatusFilter, openReorderModal };
 
     // Add modal fields by type
     function AddFields() {
@@ -329,7 +359,17 @@ export function RawMaterialInventory() {
                                 <span className="ct">Items Needing Attention</span>
                                 <div style={{ display: "flex", gap: 8 }}>
                                     <span className="tiny">Stock at or below minimum level</span>
-                                    <button className="btn btg bts" style={{ fontSize: 10 }} onClick={() => { lowStock.forEach(x => addToReorderQueue(x, x._type)); }}>⟳ Add All to Reorder</button>
+                                    <button className="btn btg bts" style={{ fontSize: 10 }} onClick={() => {
+                                        lowStock.forEach(x => {
+                                            const suggestedQty = x.reorder || x.minQty * 2 || x.minQty || 5;
+                                            const unit = x.unit || (x._type === "resin" ? "L" : x._type === "powder" ? "kg" : "spools");
+                                            setReorderQueue(prev => {
+                                                if (prev.find(r => r.itemId === x.id)) return prev;
+                                                return [...prev, { itemId: x.id, type: x._type, qty: suggestedQty, name: x.name, unit }];
+                                            });
+                                        });
+                                        setTab("reorder");
+                                    }}>⟳ Add All to Reorder</button>
                                 </div>
                             </div>
                             <div className="tw">
@@ -345,7 +385,7 @@ export function RawMaterialInventory() {
                                                 <td className="tdim">{x.material || x.type || "—"}</td>
                                                 <td><span className="mono" style={{ color: RMI_STATUS_COLOR[x.status] }}>{x.qty} {x.unit || "spools"}</span></td>
                                                 <td><span className={`b ${RMI_STATUS_BADGE[x.status]}`} style={{ fontSize: 9 }}>{RMI_STATUS_LBL[x.status]}</span></td>
-                                                <td><button className="btn btg bts" style={{ fontSize: 10 }} onClick={() => addToReorderQueue(x, x._type)}>⟳ Reorder</button></td>
+                                                <td><button className="btn btg bts" style={{ fontSize: 10 }} onClick={() => openReorderModal(x, x._type)}>⟳ Reorder</button></td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -363,66 +403,93 @@ export function RawMaterialInventory() {
 
             {/* ── Reorder ── */}
             {tab === "reorder" && (
-                <div className="card">
-                    <div className="ch">
-                        <div>
-                            <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700 }}>Reorder Request</div>
-                            <div className="tiny">Specify quantities for items you need to restock.</div>
-                        </div>
-                        {reorderQueue.length > 0 && (
-                            <button className="btn btp bts" style={{ fontSize: 11 }} onClick={placeAllReorders}>
-                                Place All Orders ({reorderQueue.length})
-                            </button>
-                        )}
-                    </div>
-                    <div className="tw">
-                        {reorderQueue.length === 0 ? (
-                            <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>
-                                <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-                                <div style={{ fontFamily: "var(--fd)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>No Items in Reorder Queue</div>
-                                <div className="tiny">Click "Reorder" on any item card to add it here.</div>
+                <div>
+                    <div className="card mb16">
+                        <div className="ch">
+                            <div>
+                                <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700 }}>Reorder Queue</div>
+                                <div className="tiny">Review and confirm items to reorder.</div>
                             </div>
-                        ) : (
-                            <table>
-                                <thead><tr><th>Color</th><th>Item Name</th><th>Brand</th><th>Type</th><th>Current Qty</th><th>Reorder Qty</th><th>Status</th><th>Action</th></tr></thead>
-                                <tbody>
-                                    {reorderQueue.map(r => {
-                                        let item;
-                                        if (r.type === "filament") item = filaments.find(x => x.id === r.itemId);
-                                        else if (r.type === "resin") item = resins.find(x => x.id === r.itemId);
-                                        else item = powders.find(x => x.id === r.itemId);
-                                        if (!item) return null;
-                                        return (
-                                            <tr key={r.itemId}>
-                                                <td><div style={{ width: 24, height: 24, borderRadius: "50%", background: item.color, border: "1px solid var(--border2)" }} /></td>
-                                                <td style={{ fontWeight: 500 }}>{item.name}</td>
-                                                <td className="tdim">{item.brand}</td>
-                                                <td className="tdim">{item.type || item.material || "—"}</td>
-                                                <td><span className="mono" style={{ color: RMI_STATUS_COLOR[item.status] }}>{item.qty} {item.unit || "spools"}</span></td>
-                                                <td>
-                                                    <input 
-                                                        type="number" 
-                                                        className="fi" 
-                                                        style={{ width: 80, fontSize: 12 }} 
-                                                        min={1} 
-                                                        value={r.qty} 
-                                                        onChange={e => updateReorderQty(r.itemId, parseInt(e.target.value) || 1)} 
-                                                    />
-                                                </td>
-                                                <td><span className={`b ${RMI_STATUS_BADGE[item.status]}`} style={{ fontSize: 9 }}>{RMI_STATUS_LBL[item.status]}</span></td>
-                                                <td>
-                                                    <div style={{ display: "flex", gap: 6 }}>
-                                                        <button className="btn btp bts" style={{ fontSize: 10 }} onClick={() => placeReorder(r.itemId)}>Order</button>
-                                                        <button className="btn btd bts" style={{ fontSize: 10 }} onClick={() => removeFromReorderQueue(r.itemId)}>✕</button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        )}
+                            {reorderQueue.length > 0 && (
+                                <button className="btn btp bts" style={{ fontSize: 11 }} onClick={placeAllReorders}>
+                                    Place All Orders ({reorderQueue.length})
+                                </button>
+                            )}
+                        </div>
+                        <div className="tw">
+                            {reorderQueue.length === 0 ? (
+                                <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>
+                                    <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+                                    <div style={{ fontFamily: "var(--fd)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>No Items in Reorder Queue</div>
+                                    <div className="tiny">Click "Reorder" on any item card to add it here.</div>
+                                </div>
+                            ) : (
+                                <table>
+                                    <thead><tr><th>Color</th><th>Item Name</th><th>Brand</th><th>Type</th><th>Current Qty</th><th>Reorder Qty</th><th>Status</th><th>Action</th></tr></thead>
+                                    <tbody>
+                                        {reorderQueue.map(r => {
+                                            let item;
+                                            if (r.type === "filament") item = filaments.find(x => x.id === r.itemId);
+                                            else if (r.type === "resin") item = resins.find(x => x.id === r.itemId);
+                                            else item = powders.find(x => x.id === r.itemId);
+                                            if (!item) return null;
+                                            return (
+                                                <tr key={r.itemId}>
+                                                    <td><div style={{ width: 24, height: 24, borderRadius: "50%", background: item.color, border: "1px solid var(--border2)" }} /></td>
+                                                    <td style={{ fontWeight: 500 }}>{item.name}</td>
+                                                    <td className="tdim">{item.brand}</td>
+                                                    <td className="tdim">{item.type || item.material || "—"}</td>
+                                                    <td><span className="mono" style={{ color: RMI_STATUS_COLOR[item.status] }}>{item.qty} {item.unit || "spools"}</span></td>
+                                                    <td>
+                                                        <input 
+                                                            type="number" 
+                                                            className="fi" 
+                                                            style={{ width: 80, fontSize: 12 }} 
+                                                            min={1} 
+                                                            value={r.qty} 
+                                                            onChange={e => updateReorderQty(r.itemId, parseInt(e.target.value) || 1)} 
+                                                        />
+                                                    </td>
+                                                    <td><span className={`b ${RMI_STATUS_BADGE[item.status]}`} style={{ fontSize: 9 }}>{RMI_STATUS_LBL[item.status]}</span></td>
+                                                    <td>
+                                                        <div style={{ display: "flex", gap: 6 }}>
+                                                            <button className="btn btp bts" style={{ fontSize: 10 }} onClick={() => placeReorder(r.itemId)}>Place Order</button>
+                                                            <button className="btn btd bts" style={{ fontSize: 10 }} onClick={() => removeFromReorderQueue(r.itemId)}>✕</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Order History */}
+                    {orderHistory.length > 0 && (
+                        <div className="card">
+                            <div className="ch">
+                                <span className="ct">Order History</span>
+                                <span className="tiny dim">{orderHistory.length} orders placed</span>
+                            </div>
+                            <div className="tw">
+                                <table>
+                                    <thead><tr><th>Item Name</th><th>Type</th><th>Quantity Ordered</th><th>Ordered At</th></tr></thead>
+                                    <tbody>
+                                        {[...orderHistory].reverse().map((order, i) => (
+                                            <tr key={i}>
+                                                <td style={{ fontWeight: 500 }}>{order.name}</td>
+                                                <td className="tdim">{order.type}</td>
+                                                <td><span className="mono" style={{ color: "var(--green)" }}>+{order.qty} {order.unit}</span></td>
+                                                <td className="tiny dim">{order.orderedAt}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -468,6 +535,18 @@ export function RawMaterialInventory() {
                         </div>
                     </div>
                 </Modal>
+            )}
+
+            {/* Reorder Modal */}
+            {pendingReorder && (
+                <ReorderModal
+                    item={pendingReorder.item}
+                    type={pendingReorder.type}
+                    suggestedQty={pendingReorder.item.reorder || Math.max(pendingReorder.item.minQty * 2 - pendingReorder.item.qty, pendingReorder.item.minQty)}
+                    unit={pendingReorder.item.unit || (pendingReorder.type === "resin" ? "L" : pendingReorder.type === "powder" ? "kg" : "spools")}
+                    onConfirm={confirmReorder}
+                    onClose={() => setPendingReorder(null)}
+                />
             )}
         </div>
     );

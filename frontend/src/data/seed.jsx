@@ -437,23 +437,23 @@ export const MATERIALS_DATA = [
 export const DT_CODES = ["Jam / Clog", "Waiting Material", "Setup / Changeover", "Planned Maintenance", "Breakdown", "Waiting Operator", "Software / Slicer Error", "Environmental"]
 
 export const SCHEDULE_JOBS = [
-  { id: "JB01", printer: "Prusa i3 MK3S+", printerCode: "PRUSA01", job: "Job 1 for PRUSA01", start: 5, dur: 7, tech: "FDM", status: "printing" },
-  { id: "JB02", printer: "Creality Ender 3 Pro", printerCode: "ENDER01", job: "Job 1 for ENDER01", start: 3, dur: 4, tech: "FDM", status: "idle" },
-  { id: "JB03", printer: "Ultimaker S5", printerCode: "ULT01", job: "Job 1 for ULT01", start: 2, dur: 9, tech: "FDM", status: "printing" },
+  { id: "JB01", printer: "Prusa i3 MK3S+", printerCode: "PRUSA01", job: "Housing Enclosure", projectNo: "PRJ-2024-001", start: 8, dur: 4, tech: "FDM", status: "printing", client: "TechCorp Inc.", material: "PLA+", imageUrl: "https://picsum.photos/seed/housing/400/300" },
+  { id: "JB02", printer: "Creality Ender 3 Pro", printerCode: "ENDER01", job: "Bracket Assembly", projectNo: "PRJ-2024-002", start: 10, dur: 3, tech: "FDM", status: "idle", client: "AutoParts Ltd.", material: "PETG", imageUrl: "https://picsum.photos/seed/bracket/400/300" },
+  { id: "JB03", printer: "Ultimaker S5", printerCode: "ULT01", job: "Gear Prototype", projectNo: "PRJ-2024-003", start: 14, dur: 6, tech: "FDM", status: "printing", client: "GearWorks Co.", material: "ABS", imageUrl: "https://picsum.photos/seed/gear/400/300" },
   { id: "JB04", printer: "Anycubic Mega X", printerCode: "ANYC01", job: null, start: 0, dur: 0, tech: "FDM", status: "maintenance" },
-  { id: "JB05", printer: "Bambu Lab A1 mini", printerCode: "BAMB01", job: "Job 2 for BAMB01", start: 8, dur: 5, tech: "FDM", status: "idle" },
-  { id: "JB06", printer: "Prusa MINI+", printerCode: "PRUSA02", job: null, start: 0, dur: 0, tech: "FDM", status: "idle" },
-  { id: "JB07", printer: "EOS Formiga P 110", printerCode: "EOS01", job: null, start: 0, dur: 0, tech: "SLS", status: "idle" },
+  { id: "JB05", printer: "Bambu Lab A1 mini", printerCode: "BAMB01", job: "Cover Plate v2", projectNo: "PRJ-2024-004", start: 21, dur: 10, tech: "FDM", status: "idle", client: "BuildRight Corp.", material: "PLA", imageUrl: "https://picsum.photos/seed/coverplate/400/300" },
+  { id: "JB06", printer: "Prusa MINI+", printerCode: "PRUSA02", job: "Spacer Set", projectNo: "PRJ-2024-005", start: 22, dur: 5, tech: "FDM", status: "idle", client: "ElectroFix", material: "PETG", imageUrl: "https://picsum.photos/seed/spacer/400/300" },
+  { id: "JB07", printer: "EOS Formiga P 110", printerCode: "EOS01", job: "SLS Batch Part", projectNo: "PRJ-2024-006", start: 6, dur: 8, tech: "SLS", status: "idle", client: "Industrial Mfg.", material: "Nylon PA12", imageUrl: "https://picsum.photos/seed/slsbatch/400/300" },
   { id: "JB08", printer: "HP Jet Fusion 5200", printerCode: "HPJF01", job: null, start: 0, dur: 0, tech: "SLS", status: "maintenance" },
-  { id: "JB09", printer: "Anycubic Photon M3", printerCode: "ANYC02", job: null, start: 0, dur: 0, tech: "SLA", status: "idle" }
+  { id: "JB09", printer: "Anycubic Photon M3", printerCode: "ANYC02", job: "Resin Mold", projectNo: "PRJ-2024-007", start: 18, dur: 8, tech: "SLA", status: "idle", client: "Prototype Labs", material: "UV Resin", imageUrl: "https://picsum.photos/seed/resinmold/400/300" }
 ]
 
 export const CONFIRM_QUEUE = [
-  { id: "CQ01", name: "Job 2 for PRUSA01", code: "BUSY-PRUSA01-1", start: "19 Mar, 6:29 PM", status: "pending" },
-  { id: "CQ02", name: "Job 3 for PRUSA01", code: "BUSY-PRUSA01-2", start: "20 Mar, 3:29 AM", status: "pending" },
-  { id: "CQ03", name: "Job 1 for PRUSA01", code: "BUSY-PRUSA01-0", start: "19 Mar, 5:29 AM", status: "confirmed" },
-  { id: "CQ04", name: "Job 4 for PRUSA01", code: "BUSY-PRUSA01-3", start: "20 Mar, 12:29 PM", status: "confirmed" },
-  { id: "CQ05", name: "Job 5 for PRUSA01", code: "BUSY-PRUSA01-4", start: "21 Mar, 12:29 AM", status: "confirmed" }
+  { id: "CQ01", name: "Housing Enclosure v2", code: "BUSY-PRUSA01-1", start: "19 Mar, 6:29 PM", status: "pending", modelName: "housing_enclosure_v2.stl", imageUrl: "https://picsum.photos/seed/printer1/200/200" },
+  { id: "CQ02", name: "Bracket Mount Assembly", code: "BUSY-PRUSA01-2", start: "20 Mar, 3:29 AM", status: "pending", modelName: "bracket_mount_assy.step", imageUrl: "https://picsum.photos/seed/printer2/200/200" },
+  { id: "CQ03", name: "Gear Set Prototype", code: "BUSY-PRUSA01-0", start: "19 Mar, 5:29 AM", status: "confirmed", modelName: "gear_set_v1.3mf", imageUrl: "https://picsum.photos/seed/printer3/200/200" },
+  { id: "CQ04", name: "Cover Plate Mk3", code: "BUSY-PRUSA01-3", start: "20 Mar, 12:29 PM", status: "confirmed", modelName: "cover_plate_mk3.stl", imageUrl: "https://picsum.photos/seed/printer4/200/200" },
+  { id: "CQ05", name: "Spacer Ring Pack", code: "BUSY-PRUSA01-4", start: "21 Mar, 12:29 AM", status: "confirmed", modelName: "spacer_rings.3mf", imageUrl: "https://picsum.photos/seed/printer5/200/200" }
 ]
 
 export const ALLOT_QUEUE = [
