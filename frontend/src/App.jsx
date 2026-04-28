@@ -29,7 +29,14 @@ export default function App() {
     const [open, setOpen] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [session, setSession] = useState(null);
-    const [lcProjects, setLcProjects] = useState([]);
+    const [lcProjects, setLcProjects] = useState(() => {
+        try {
+            const saved = localStorage.getItem("lc_projects");
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
     const [loading, setLoading] = useState(true);
     const [toasts, setToasts] = useState([]);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -54,6 +61,10 @@ export default function App() {
             setSection(visibleNav[0].id);
         }
     }, [allowedSections, section, visibleNav]);
+
+    useEffect(() => {
+        localStorage.setItem("lc_projects", JSON.stringify(lcProjects));
+    }, [lcProjects]);
 
     async function bootstrap() {
         const token = localStorage.getItem("access_token");
@@ -91,11 +102,24 @@ export default function App() {
         }
         try {
             const data = await api.getProjects();
-            const mapped = data.map(p => ({ ...p, id: p.custom_id || p.id, stage: p.status === 'active' ? 'review' : 'closed', printPct: 0 }));
-            setLcProjects(mapped);
+            const backendProjects = data.map(p => ({
+                ...p,
+                id: p.custom_id || p.id,
+                stage: p.status === 'active' ? 'review' : 'closed',
+                printPct: 0,
+            }));
+            // Merge with localStorage projects (local rich data takes priority)
+            setLcProjects(prev => {
+                const localById = new Map(prev.map(p => [p.id, p]));
+                backendProjects.forEach(bp => {
+                    if (!localById.has(bp.id)) {
+                        localById.set(bp.id, bp);
+                    }
+                });
+                return Array.from(localById.values());
+            });
         } catch (err) {
             console.warn("Backend not reachable.");
-            setLcProjects([]);
         }
     }
 

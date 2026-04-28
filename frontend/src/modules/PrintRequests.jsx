@@ -302,13 +302,6 @@ export function NewRequestWizard({ onClose, onCreate }) {
                         </label>
                     </div>
 
-                    <div className="card" style={{ textAlign: "center", padding: 20, boxShadow: "none", border: "1px solid var(--border)" }}>
-                        <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Reference Image</div>
-                        <div style={{ display: "flex", justifyContent: "center" }}>
-                            <ImageUpload onUpload={(url) => setF(prev => ({ ...prev, imageUrl: url }))} />
-                        </div>
-                        {f.imageUrl && <div className="tiny mt8" style={{ color: "var(--green)" }}>✓ Image successfully linked</div>}
-                    </div>
                 </div>
             )}
             {step === 3 && (
@@ -531,7 +524,7 @@ function useLivePrintPct(project) {
 }
 
 /* ── project lifecycle timeline view ── */
-function ProjectLifecycle({ project, onAdvance, onBack }) {
+function ProjectLifecycle({ project, onAdvance, onBack, onEdit }) {
     const [modal, setModal] = useState(null);
     const livePct = useLivePrintPct(project);
     const curIdx = lcIdx(project.stage);
@@ -625,7 +618,7 @@ function ProjectLifecycle({ project, onAdvance, onBack }) {
                                                             <div className="tiny mt4" style={{ color: livePct >= 100 ? "var(--green)" : "var(--accent)" }}>{livePct >= 100 ? "Print complete — advance to post-processing" : "Updating live..."}</div>
                                                         </div>
                                                     )}
-                                                    {isCur && (
+                                                    {isCur && project.stage !== "submitted" && (
                                                         <div style={{ marginTop: 8 }}>
                                                             <button className="btn btp bts" disabled={s.id === "printing" && livePct < 100} onClick={handleAction}>{actionLabel}</button>
                                                         </div>
@@ -644,7 +637,7 @@ function ProjectLifecycle({ project, onAdvance, onBack }) {
                     <div className="card mb16">
                         <div className="ch">
                             <span className="ct">Project Info</span>
-                            <button className="btn btg bts" style={{ fontSize: 10, padding: "3px 10px" }} onClick={() => openEdit(project)}>✎ Edit</button>
+                            <button className="btn btg bts" style={{ fontSize: 10, padding: "3px 10px" }} onClick={() => onEdit(project)}>✎ Edit</button>
                         </div>
                         <div className="cb">
                             {[["ID", project.id], ["Submitted", project.created], ["Due", project.due], ["Owner", project.owner], ["Tech", project.tech], ["Material", project.material], ["Qty", project.qty + " parts"], ["WO", project.woId || "—"], ["Machine", project.machine || "—"]].map(([k, v]) => (
@@ -661,7 +654,9 @@ function ProjectLifecycle({ project, onAdvance, onBack }) {
                             <div className="ch"><span className="ct" style={{ color: "var(--accent)" }}>What Happens Next</span></div>
                             <div className="cb">
                                 <div className="dim small mb12">{nextGuide}</div>
-                                <button className="btn btp bts" style={{ width: "100%" }} disabled={project.stage === "printing" && livePct < 100} onClick={handleAction}>{actionLabel}</button>
+                                {project.stage !== "submitted" && (
+                                    <button className="btn btp bts" style={{ width: "100%" }} disabled={project.stage === "printing" && livePct < 100} onClick={handleAction}>{actionLabel}</button>
+                                )}
                             </div>
                         </div>
                     )}
@@ -733,13 +728,18 @@ export function PrintRequests({ lcProjects, onLcProjectsChange, toast }) {
         setSel(proj.id);
         toast("Request " + proj.id + " submitted — awaiting AM Review", "s");
 
-        // 2. Save Project to Database
+        // 2. Save Project to Database & sync ID to prevent duplicates on reload
         api.createProject({
             name: proj.name,
             dept: proj.dept,
             priority: proj.priority,
             due_date: proj.due
         }).then(response => {
+            const backendId = response.custom_id || response.id;
+            if (backendId && backendId !== proj.id) {
+                onLcProjectsChange(prev => prev.map(p => p.id === proj.id ? { ...p, id: backendId } : p));
+                setSel(backendId);
+            }
             console.log("Project saved to DB:", response);
         }).catch(err => {
             console.error("Failed to save project to DB:", err);
@@ -788,7 +788,7 @@ export function PrintRequests({ lcProjects, onLcProjectsChange, toast }) {
     }
 
     if (selProject) {
-        return <ProjectLifecycle project={selProject} onAdvance={handleAdvance} onBack={() => setSel(null)} />;
+        return <ProjectLifecycle project={selProject} onAdvance={handleAdvance} onBack={() => setSel(null)} onEdit={openEdit} />;
     }
 
     const pendingCount = lcProjects.filter(p => ["submitted", "review"].includes(p.stage)).length;
