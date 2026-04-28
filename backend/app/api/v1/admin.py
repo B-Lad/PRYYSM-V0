@@ -139,7 +139,7 @@ def create_tenant(
             id=str(uuid.uuid4()),
             email=data.admin_email,
             full_name=f"{data.name} Admin",
-            password_hash=get_password_hash(data.admin_password),
+            hashed_password=get_password_hash(data.admin_password),
             role="admin",
             tenant_id=tenant_id,
             is_active=True,
@@ -201,7 +201,7 @@ def reset_company_password(
     if not new_password:
         new_password = f"Admin{tenant_id[:8].upper()}{str(uuid.uuid4())[:4]}"
 
-    admin_user.password_hash = get_password_hash(new_password)
+    admin_user.hashed_password = get_password_hash(new_password)
 
     db.commit()
 

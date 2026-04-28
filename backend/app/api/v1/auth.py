@@ -88,7 +88,7 @@ def attach_tenant(user: User, tenant: Optional[Tenant]):
 def login(req: UserLogin, db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == req.email).first()
-        if not user or not verify_password(req.password, user.password_hash):
+        if not user or not verify_password(req.password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -162,7 +162,7 @@ def register(
         new_user = User(
             email=user_data.email,
             full_name=user_data.full_name,
-            password_hash=get_password_hash(user_data.password),
+            hashed_password=get_password_hash(user_data.password),
             role=user_data.role,
             tenant_id=target_tenant.id,
             is_active=True,
@@ -261,14 +261,14 @@ def change_password(
     user = db.query(User).filter(User.id == ctx.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not verify_password(body.current_password, user.password_hash):
+    if not verify_password(body.current_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     if len(body.new_password) < 8:
         raise HTTPException(
             status_code=400, detail="New password must be at least 8 characters"
         )
 
-    user.password_hash = get_password_hash(body.new_password)
+    user.hashed_password = get_password_hash(body.new_password)
     db.commit()
     return {"message": "Password updated successfully"}
 
@@ -305,7 +305,7 @@ def set_user_password(
                 status_code=403, detail="Not allowed to reset another user's password"
             )
 
-    user.password_hash = get_password_hash(body.new_password)
+    user.hashed_password = get_password_hash(body.new_password)
     db.commit()
     return {"message": "Password updated successfully"}
 

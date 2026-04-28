@@ -1,5 +1,9 @@
 import os
 from typing import List, Optional
+from dotenv import load_dotenv
+
+# Automatically load variables from .env file
+load_dotenv()
 
 
 class Settings:

@@ -55,41 +55,45 @@ export function Login({ onLogin }) {
                 
                 <form onSubmit={handleSubmit}>
                     <div style={{ marginBottom: 20 }}>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#334155" }}>Email Address</label>
-                        <input 
-                            style={{ 
-                                width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", 
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 8, color: "#334155" }}>Email Address</label>
+                        <input
+                            style={{
+                                width: "100%", padding: "12px 16px", border: "1px solid #cbd5e1",
                                 borderRadius: 8, fontSize: 14, background: "rgba(255,255,255,0.7)",
-                                outline: "none", transition: "border-color 0.2s"
+                                outline: "none", transition: "border-color 0.2s, box-shadow 0.2s", boxSizing: "border-box"
                             }}
-                            type="email" 
-                            placeholder="admin@pryysm.com" 
-                            value={email} 
-                            onChange={e => setEmail(e.target.value)} 
-                            required 
+                            onFocus={e => { e.target.style.borderColor = "#2563eb"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.1)"; }}
+                            onBlur={e => { e.target.style.borderColor = "#cbd5e1"; e.target.style.boxShadow = "none"; }}
+                            type="email"
+                            placeholder="admin@pryysm.com"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            required
                         />
                     </div>
-                    <div style={{ marginBottom: 24 }}>
-                        <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#334155" }}>
+                    <div style={{ marginBottom: 20 }}>
+                        <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, fontWeight: 600, marginBottom: 8, color: "#334155" }}>
                             <span>Password</span>
-                            <span 
+                            <span
                                 style={{ fontSize: 11, color: "#2563eb", cursor: "pointer", fontWeight: 500 }}
                                 onClick={() => setShowPassword(!showPassword)}
                             >
                                 {showPassword ? "Hide" : "Show"}
                             </span>
                         </label>
-                        <input 
-                            style={{ 
-                                width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", 
+                        <input
+                            style={{
+                                width: "100%", padding: "12px 16px", border: "1px solid #cbd5e1",
                                 borderRadius: 8, fontSize: 14, background: "rgba(255,255,255,0.7)",
-                                outline: "none", transition: "border-color 0.2s"
+                                outline: "none", transition: "border-color 0.2s, box-shadow 0.2s", boxSizing: "border-box"
                             }}
-                            type={showPassword ? "text" : "password"} 
-                            placeholder="••••••••" 
-                            value={password} 
-                            onChange={e => setPassword(e.target.value)} 
-                            required 
+                            onFocus={e => { e.target.style.borderColor = "#2563eb"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.1)"; }}
+                            onBlur={e => { e.target.style.borderColor = "#cbd5e1"; e.target.style.boxShadow = "none"; }}
+                            type={showPassword ? "text" : "password"}
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            required
                         />
                     </div>
                     
