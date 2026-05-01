@@ -57,7 +57,7 @@ def serialize_tenant(tenant: Tenant):
             "contact_email": settings.get("contact_email", ""),
             "max_users": settings.get("max_users", 5),
             "max_machines": settings.get("max_machines", 2),
-            "demo_mode": settings.get("demo_mode", False),
+            "demo_mode": settings.get("demo_mode", True),
             "created_at": tenant.created_at.isoformat() if tenant.created_at else None,
         }
     except Exception as e:
@@ -69,7 +69,7 @@ def serialize_tenant(tenant: Tenant):
             "contact_email": "",
             "max_users": 5,
             "max_machines": 2,
-            "demo_mode": False,
+            "demo_mode": True,
             "created_at": None,
         }
 

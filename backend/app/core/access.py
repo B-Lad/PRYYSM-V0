@@ -28,7 +28,7 @@ def normalize_tenant_settings(settings):
     normalized.setdefault("max_machines", 2)
     normalized.setdefault("contact_email", "")
     normalized.setdefault("member_access", {})
-    normalized.setdefault("demo_mode", False)
+    normalized.setdefault("demo_mode", True)
     return normalized
 
 
