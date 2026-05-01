@@ -1,32 +1,24 @@
 import React, { useState } from "react";
-import { WOS, PROJECTS, ROUTES_DATA } from '../data/seed.jsx';
-import { TB, SB, Tabs, Prog } from '../components/atoms.jsx';
+import { ROUTES_DATA } from '../data/seed.jsx';
+import { TB, SB, DB, Tabs, Prog, Modal } from '../components/atoms.jsx';
 import { TECH_C } from '../data/constants.js';
 
-const STAGES = [
-    { id: "production", label: "🖨 Printing", icon: "🖨", limit: 7 },
-    { id: "postproc", label: "⚙️ Post-Processing", icon: "⚙️", limit: 5 },
-    { id: "qa", label: "🔍 QA", icon: "🔍", limit: 4 },
-    { id: "completed", label: "📦 Handoff", icon: "📦", limit: 6 },
+const KANBAN_STAGES = [
+    { id: "submitted", label: "Submitted", icon: "📝" },
+    { id: "review", label: "AM Review", icon: "✓" },
+    { id: "planning", label: "Planning", icon: "📐" },
+    { id: "printing", label: "Printing", icon: "🖨" },
+    { id: "postproc", label: "Post-Process", icon: "⚙" },
+    { id: "qa", label: "QA", icon: "✅" },
+    { id: "closed", label: "Closed", icon: "🎯" }
 ];
 
-const STATUS_COLORS = {
-    production: "var(--accent)",
-    postproc: "var(--purple)",
-    qa: "var(--yellow)",
-    completed: "var(--green)",
-};
 
-function getProjectInfo(projectId) {
-    const proj = PROJECTS.find(p => p.id === projectId);
-    return proj ? { name: proj.name, owner: proj.owner, priority: proj.priority } : { name: projectId, owner: "—", priority: "normal" };
-}
-
-export function Flow() {
+export function Flow({ lcProjects = [] }) {
     const [tab, setTab] = useState("kanban");
-    const [selectedWO, setSelectedWO] = useState(null);
+    const [selId, setSelId] = useState(null);
 
-    const selWO = selectedWO ? WOS.find(w => w.id === selectedWO) : null;
+    const sel = lcProjects.find(p => p.id === selId);
 
     return (
         <div>
@@ -35,55 +27,34 @@ export function Flow() {
 
             {tab === "kanban" && (
                 <div>
-                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${STAGES.length}, minmax(280px, 1fr))`, gap: 12, overflowX: "auto", paddingBottom: 16 }}>
-                        {STAGES.map(stage => {
-                            const cards = WOS.filter(w => w.status === stage.id);
-                            const over = cards.length > stage.limit;
+                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${KANBAN_STAGES.length}, minmax(260px, 1fr))`, gap: 12, overflowX: "auto", paddingBottom: 16 }}>
+                        {KANBAN_STAGES.map(stage => {
+                            const cards = lcProjects.filter(p => p.stage === stage.id);
                             return (
                                 <div key={stage.id} style={{ background: "var(--bg3)", borderRadius: "var(--r3)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 200px)", overflow: "hidden" }}>
-                                    <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg1)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, borderTopColor: STATUS_COLORS[stage.id], borderTopWidth: 3 }}>
-                                        <span style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700 }}>{stage.icon} {stage.label}</span>
-                                        <span style={{ fontSize: 10, fontFamily: "var(--fm)", background: over ? "var(--rdim)" : "var(--gdim)", color: over ? "var(--red)" : "var(--green)", padding: "2px 8px", borderRadius: 10, fontWeight: 700 }}>{cards.length}/{stage.limit}</span>
+                                    <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg1)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+                                        <span style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, color: "var(--text)" }}>{stage.icon} {stage.label}</span>
+                                        <span style={{ fontSize: 10, fontFamily: "var(--fm)", background: cards.length > 3 ? "var(--rdim)" : "var(--gdim)", color: cards.length > 3 ? "var(--red)" : "var(--green)", padding: "2px 6px", borderRadius: 10, fontWeight: 700 }}>{cards.length}</span>
                                     </div>
                                     <div style={{ flex: 1, overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 8 }}>
                                         {cards.length === 0 && <div style={{ textAlign: "center", padding: 20, color: "var(--text3)", fontSize: 11 }}>No items</div>}
-                                        {cards.map(wo => {
-                                            const proj = getProjectInfo(wo.project);
-                                            return (
-                                                <div key={wo.id} className={`kcard ${wo.priority}`} style={{ cursor: "pointer", marginBottom: 0, padding: 10, borderLeftWidth: 3, position: "relative" }}
-                                                    onClick={() => setSelectedWO(wo.id === selectedWO ? null : wo.id)}>
-                                                    <div className="rowsb mb4">
-                                                        <span className="tacc">{wo.id}</span>
-                                                        <div style={{ display: "flex", gap: 4 }}>
-                                                            {wo.priority === "urgent" && <span className="b burgent" style={{ fontSize: 8 }}>URGENT</span>}
-                                                            {wo.priority === "high" && <span className="b bhigh" style={{ fontSize: 8 }}>HIGH</span>}
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, marginBottom: 3, lineHeight: 1.3 }}>{proj.name}</div>
-                                                    <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 4 }}>{wo.part}</div>
-                                                    <div style={{ fontSize: 10, color: "var(--text2)", display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-                                                        <span>{wo.tech} · {wo.material}</span>
-                                                    </div>
-                                                    <div className="rowsb mb4">
-                                                        <TB tech={wo.tech} />
-                                                        <span className="tiny">Qty: {wo.qty}</span>
-                                                    </div>
-                                                    <div className="tiny mb4" style={{ color: "var(--text2)" }}>👤 {wo.requestor}</div>
-                                                    <div className="rowsb">
-                                                        <span className="tiny" style={{ color: wo.priority === "urgent" ? "var(--red)" : "var(--text3)" }}>Due: {wo.due}</span>
-                                                        {wo.machine && wo.machine !== "—" && <span className="tiny" style={{ color: "var(--accent)" }}>🖨 {wo.machine}</span>}
-                                                    </div>
-
-                                                    {selectedWO === wo.id && (
-                                                        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)", fontSize: 10, color: "var(--text2)" }}>
-                                                            <div className="rowsb mb2"><span className="tiny">Project</span><span style={{ fontWeight: 600 }}>{proj.name}</span></div>
-                                                            <div className="rowsb mb2"><span className="tiny">Owner</span><span>{proj.owner}</span></div>
-                                                            <div className="rowsb"><span className="tiny">Priority</span><SB s={wo.priority} /></div>
-                                                        </div>
-                                                    )}
+                                        {cards.map(p => (
+                                            <div key={p.id} className={`req-card ${p.dept?.toLowerCase()}`} style={{ cursor: "pointer", marginBottom: 0, padding: 10, borderLeftWidth: 3, position: "relative" }} onClick={() => setSelId(p.id)}>
+                                                <div className="rowsb mb4">
+                                                    <span className="tacc">{p.id}</span>
+                                                    {p.priority === "urgent" && <span className="b burgent" style={{ fontSize: 8 }}>URGENT</span>}
+                                                    {p.priority === "high" && <span className="b bhigh" style={{ fontSize: 8 }}>HIGH</span>}
                                                 </div>
-                                            );
-                                        })}
+                                                <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, marginBottom: 3, lineHeight: 1.3 }}>{p.name}</div>
+                                                <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 6 }}>{p.tech} · {p.material}</div>
+                                                <div className="rowsb">
+                                                    <span className="tiny">Qty: {p.qty}</span>
+                                                    <span className="tiny" style={{ color: "var(--accent)", fontWeight: 700 }}>{p.printPct}%</span>
+                                                </div>
+                                                <div style={{ marginTop: 4 }}><Prog pct={p.printPct} h={3} color={p.printPct === 100 ? "green" : "cyan"} /></div>
+                                                <div className="tiny mt4">👤 {p.owner}</div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             );
@@ -112,6 +83,79 @@ export function Flow() {
                         );
                     })}
                 </div>
+            )}
+        </div>
+
+            {sel && (
+                <Modal title={`Project Detail — ${sel.id}`} onClose={() => setSelId(null)}>
+                    <div style={{ background: "var(--bg3)", borderRadius: "var(--r2)", padding: 14, border: "1px solid var(--border)", marginBottom: 16 }}>
+                        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
+                            {sel.imageUrl && <img src={sel.imageUrl} alt="" style={{ width: 64, height: 64, borderRadius: 8, objectFit: "cover", border: "1px solid var(--border)" }} />}
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontFamily: "var(--fd)", fontSize: 16, fontWeight: 800 }}>{sel.name}</div>
+                                <div className="tiny" style={{ color: "var(--text2)" }}>{sel.id} · {sel.tech}</div>
+                            </div>
+                            <div style={{ display: "flex", gap: 6 }}>
+                                <SB s={sel.priority} />
+                                <SB s={sel.stage} />
+                            </div>
+                        </div>
+
+                        <div className="g g2">
+                            {[
+                                ["Owner", sel.owner],
+                                ["Department", sel.dept || "—"],
+                                ["Due Date", sel.due || "—"],
+                                ["Technology", sel.tech],
+                                ["Material", sel.material],
+                                ["Quantity", (sel.qty || 0) + " parts"],
+                                ["Est. Time", sel.woPrintTime || "—"],
+                                ["Machine", sel.machine || "—"]
+                            ].map(([k, v]) => (
+                                <div key={k} style={{ marginBottom: 12 }}>
+                                    <div className="tiny mb4">{k.toUpperCase()}</div>
+                                    <div style={{ fontSize: 13, fontWeight: 600 }}>{v}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {(sel.description || sel.requestNote || sel.extraInfo) && <div className="sep" />}
+
+                        {sel.description && (
+                            <div style={{ marginBottom: 12 }}>
+                                <div className="tiny mb4">DESCRIPTION</div>
+                                <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.5 }}>{sel.description}</div>
+                            </div>
+                        )}
+
+                        {sel.requestNote && (
+                            <div style={{ marginBottom: 12 }}>
+                                <div className="tiny mb4">PRINT NOTES</div>
+                                <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.5 }}>{sel.requestNote}</div>
+                            </div>
+                        )}
+
+                        {sel.extraInfo && (
+                            <div style={{ marginBottom: 12 }}>
+                                <div className="tiny mb4">ADDITIONAL INFORMATION</div>
+                                <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.5 }}>{sel.extraInfo}</div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ background: "var(--bg2)", borderRadius: "var(--r2)", padding: 12, border: "1px solid var(--border)" }}>
+                        <div className="tiny mb8">PROJECT HISTORY</div>
+                        {(sel.history || []).map((h, i) => (
+                            <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, fontSize: 11 }}>
+                                <div style={{ color: "var(--text3)", whiteSpace: "nowrap" }}>{h.time}</div>
+                                <div style={{ flex: 1 }}>
+                                    <span style={{ fontWeight: 700, textTransform: "uppercase", fontSize: 9, marginRight: 6 }}>{h.stage}:</span>
+                                    <span style={{ color: "var(--text2)" }}>{h.note}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Modal>
             )}
         </div>
     );

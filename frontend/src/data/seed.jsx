@@ -7,8 +7,6 @@ export const LIFECYCLE_STAGES = [
   { id: "printing", label: "Printing", icon: "\u{1F5A8}" },
   { id: "postproc", label: "Post-Process", icon: "\u2699" },
   { id: "qa", label: "QA Inspection", icon: "\u2705" },
-  { id: "handoff", label: "Dept Handoff", icon: "\u{1F4E6}" },
-  { id: "evaluation", label: "Evaluation", icon: "\u2B50" },
   { id: "closed", label: "Closed", icon: "\u{1F3AF}" }
 ]
 

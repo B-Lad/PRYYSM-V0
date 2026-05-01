@@ -9,11 +9,10 @@ import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 
 const Overview = lazy(() => import('./modules/Overview.jsx').then(m => ({ default: m.Overview })));
 const PrintRequests = lazy(() => import('./modules/PrintRequests.jsx').then(m => ({ default: m.PrintRequests })));
-const AMReview = lazy(() => import('./modules/AMReview.jsx').then(m => ({ default: m.AMReview })));
+const AMReview = lazy(() => import('./modules/AMReview/index.jsx').then(m => ({ default: m.AMReview })));
 const Projects = lazy(() => import('./modules/Projects.jsx').then(m => ({ default: m.Projects })));
 const PrinterFleet = lazy(() => import('./modules/PrinterFleet.jsx').then(m => ({ default: m.PrinterFleet })));
 const PrintSchedule = lazy(() => import('./modules/PrintSchedule.jsx').then(m => ({ default: m.PrintSchedule })));
-const JobAllotment = lazy(() => import('./modules/JobAllotment.jsx').then(m => ({ default: m.JobAllotment })));
 const RawMaterialInventory = lazy(() => import('./modules/RawMaterialInventory.jsx').then(m => ({ default: m.RawMaterialInventory })));
 const SpareStores = lazy(() => import('./modules/SpareStores.jsx').then(m => ({ default: m.SpareStores })));
 const PostPosingQC = lazy(() => import('./modules/PostPosingQC.jsx').then(m => ({ default: m.PostPosingQC })));
@@ -41,6 +40,14 @@ export default function App() {
     const [toasts, setToasts] = useState([]);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [passwordForm, setPasswordForm] = useState({ current_password: "", new_password: "", confirm_password: "" });
+    const [printerAssignments, setPrinterAssignments] = useState(() => {
+        try {
+            const saved = localStorage.getItem("printer_assignments");
+            return saved ? JSON.parse(saved) : {};
+        } catch {
+            return {};
+        }
+    });
     const machines = useLive();
 
     useRealtimeNotifications();
@@ -65,6 +72,10 @@ export default function App() {
     useEffect(() => {
         localStorage.setItem("lc_projects", JSON.stringify(lcProjects));
     }, [lcProjects]);
+
+    useEffect(() => {
+        localStorage.setItem("printer_assignments", JSON.stringify(printerAssignments));
+    }, [printerAssignments]);
 
     async function bootstrap() {
         const token = localStorage.getItem("access_token");
@@ -190,15 +201,14 @@ export default function App() {
     const sections = {
         overview: <Overview machines={machines} setSection={setSection} />,
         requests: <PrintRequests lcProjects={lcProjects} onLcProjectsChange={setLcProjects} toast={toast} />,
-        amreview: <AMReview lcProjects={lcProjects} onLcProjectsChange={setLcProjects} toast={toast} />,
+        amreview: <AMReview lcProjects={lcProjects} onLcProjectsChange={setLcProjects} toast={toast} printerAssignments={printerAssignments} onPrinterAssignmentsChange={setPrinterAssignments} />,
         projects: <Projects lcProjects={lcProjects} onLcProjectsChange={setLcProjects} toast={toast} setSection={setSection} />,
         fleet: <PrinterFleet />,
-        schedule: <PrintSchedule />,
-        allotment: <JobAllotment />,
+        schedule: <PrintSchedule lcProjects={lcProjects} printerAssignments={printerAssignments} onPrinterAssignmentsChange={setPrinterAssignments} />,
         rawmat: <RawMaterialInventory />,
         spares: <SpareStores />,
         postposing: <PostPosingQC />,
-        flow: <Flow />,
+        flow: <Flow lcProjects={lcProjects} />,
         config: <Config />,
         admin: <Admin session={session} onSessionRefresh={bootstrap} />,
         repository: <Repository lcProjects={lcProjects} />,

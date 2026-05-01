@@ -65,12 +65,11 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
             {tab === "projects" && (
                 <div className="g g21">
                     <div className="card">
-                        <div className="tw"><table><thead><tr><th>Project</th><th>Name</th><th>Dept</th><th>Owner</th><th>Status</th><th>WOs</th><th>Due</th></tr></thead><tbody>
+                        <div className="tw"><table><thead><tr><th>Project</th><th>Name</th><th>Owner</th><th>Status</th><th>WOs</th><th>Due</th></tr></thead><tbody>
                             {PROJECTS.filter(p => p.status !== "completed").map(p => (
                                 <tr key={p.id} className="cl" onClick={() => setSelProj(p)} style={{ background: selProj?.id === p.id ? "var(--bg3)" : undefined }}>
                                     <td><span className="tacc">{p.id}</span></td>
                                     <td style={{ fontWeight: 600, color: selProj?.id === p.id ? "var(--accent)" : undefined, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</td>
-                                    <td><DB code={p.code} /></td>
                                     <td className="tdim">{p.owner}</td>
                                     <td><SB s={p.status} /></td>
                                     <td><span className="tm">{p.wos}</span></td>
@@ -84,10 +83,10 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
                             <div className="card" style={{ position: "sticky", top: 20 }}>
                                 <div className="ch" style={{ borderTopColor: DEPT_C[selProj.code], borderTopWidth: 2 }}>
                                     <div><div style={{ fontFamily: "var(--fd)", fontSize: 14, fontWeight: 800 }}>{selProj.name}</div><div className="tiny mt4">{selProj.id}</div></div>
-                                    <div style={{ display: "flex", gap: 6 }}><DB code={selProj.code} /><SB s={selProj.status} /></div>
+                                    <div style={{ display: "flex", gap: 6 }}><SB s={selProj.status} /></div>
                                 </div>
                                 <div className="cb">
-                                    {[["Owner", selProj.owner], ["Department", selProj.dept], ["Due", selProj.due], ["Priority", selProj.priority], ["Work Orders", selProj.wos]].map(([k, v]) => (
+                                    {[["Owner", selProj.owner], ["Due", selProj.due], ["Priority", selProj.priority], ["Work Orders", selProj.wos]].map(([k, v]) => (
                                         <div key={k} className="rowsb" style={{ padding: "7px 0", borderBottom: "1px solid var(--border)" }}><span className="tiny">{k}</span><span style={{ fontSize: 12 }}>{v}</span></div>
                                     ))}
                                     <div className="sep" />
@@ -108,13 +107,12 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
 
             {/* WORK ORDERS TAB */}
             {tab === "wos" && (
-                <div className="card"><div className="tw"><table><thead><tr><th>WO</th><th>Part</th><th>Project</th><th>Dept</th><th>Tech</th><th>Qty</th><th>Status</th><th>Due</th><th>Priority</th><th>Requestor</th></tr></thead><tbody>
+                <div className="card"><div className="tw"><table><thead><tr><th>WO</th><th>Part</th><th>Project</th><th>Tech</th><th>Qty</th><th>Status</th><th>Due</th><th>Priority</th><th>Requestor</th></tr></thead><tbody>
                     {WOS.map(wo => (
                         <tr key={wo.id} className="cl" onClick={() => setSelWO(wo)}>
                             <td><span className="tacc">{wo.id}</span></td>
                             <td style={{ fontWeight: 500, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{wo.part}</td>
                             <td><span className="tm">{wo.project}</span></td>
-                            <td><DB code={wo.code || wo.dept.slice(0, 3).toUpperCase()} /></td>
                             <td><TB tech={wo.tech} /></td>
                             <td className="tm">{wo.qty}</td>
                             <td><SB s={wo.status} /></td>
@@ -132,7 +130,7 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
                     <div className="g g21">
                         <div className="card">
                             <div className="ch"><span className="ct">Completed Projects Archive</span></div>
-                            <div className="tw"><table><thead><tr><th>Project</th><th>Name</th><th>Dept</th><th>Completed</th><th>WO</th><th>Machine</th><th>Material</th><th></th></tr></thead><tbody>
+                            <div className="tw"><table><thead><tr><th>Project</th><th>Name</th><th>Completed</th><th>WO</th><th>Machine</th><th>Material</th><th></th></tr></thead><tbody>
                                 {completedProjects.length === 0 ? (
                                     <tr><td colSpan={8} style={{ textAlign: "center", padding: 30, color: "var(--text3)" }}>No completed projects yet</td></tr>
                                 ) : (
@@ -140,7 +138,6 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
                                         <tr key={p.id} className="cl" onClick={() => setSelCompleted(p)} style={{ background: selCompleted?.id === p.id ? "var(--bg3)" : undefined }}>
                                             <td><span className="tacc">{p.id}</span></td>
                                             <td style={{ fontWeight: 600, color: selCompleted?.id === p.id ? "var(--accent)" : undefined, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</td>
-                                            <td><DB code={p.dept || p.code} /></td>
                                             <td><span className="tm">{p.history?.find(h => h.stage === "closed")?.time || "—"}</span></td>
                                             <td><span className="mono" style={{ fontSize: 11 }}>{p.woId || "—"}</span></td>
                                             <td><span className="tiny">{p.machine || "—"}</span></td>
@@ -173,7 +170,6 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
                                     <div className="cb">
                                         <div className="tiny mb8" style={{ color: "var(--green)", fontWeight: 700 }}>PROJECT DETAILS</div>
                                         {[
-                                            ["Department", selCompleted.dept || "—"],
                                             ["Owner", selCompleted.owner],
                                             ["Technology", selCompleted.tech],
                                             ["Material", selCompleted.material],
@@ -228,7 +224,7 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
                 <Modal title={`Work Order ${selWO.id}`} onClose={() => setSelWO(null)}
                     footer={(<><button className="btn btg bts" onClick={() => setSelWO(null)}>Close</button><button className="btn btp bts" onClick={() => setSelWO(null)}>Save Changes</button></>)} >
                     <div className="g g2 mb12">
-                        {[["WO", selWO.id], ["Project", selWO.project], ["Part", selWO.part], ["Dept", selWO.dept], ["Requestor", selWO.requestor], ["Machine", selWO.machine || "—"]].map(([k, v]) => (
+                        {[["WO", selWO.id], ["Project", selWO.project], ["Part", selWO.part], ["Requestor", selWO.requestor], ["Machine", selWO.machine || "—"]].map(([k, v]) => (
                             <div key={k}><div className="tiny mb4">{k.toUpperCase()}</div><div style={{ fontSize: 13, fontWeight: 500 }}>{v}</div></div>
                         ))}
                     </div>

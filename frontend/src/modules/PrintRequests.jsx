@@ -38,6 +38,8 @@ export function NewRequestWizard({ onClose, onCreate }) {
     const [f, setF] = useState({ name: "", dept: "", projCode: "", owner: "", priority: "normal", due: "", description: "", tech: "FDM", estHrs: 0, estMin: 0, groups: [BLANK_GROUP()], notes: "", imageUrl: "", modelName: "" });
     const set = (k, v) => setF(p => ({ ...p, [k]: v }));
     const canNext = [f.name.trim() && f.owner.trim() && f.due, true, true, true][step];
+    const u = f.tech === "SLA" ? "ml" : "g";
+    const uFull = f.tech === "SLA" ? "milliliters" : "grams";
 
     // Group ops
     const addGroup = () => setF(p => ({ ...p, groups: [...p.groups, BLANK_GROUP()] }));
@@ -51,13 +53,19 @@ export function NewRequestWizard({ onClose, onCreate }) {
     function submit() {
         const now = new Date();
         const ts = now.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-        const id = f.projCode || ("PRJ-" + (Math.floor(Math.random() * 900) + 100));
+        const id = (f.projCode && f.projCode.trim()) ? f.projCode.trim() : ("PRJ-" + (Math.floor(Math.random() * 900) + 100));
         const firstMat = f.groups[0]?.materials[0];
+        const rawMinutes = (parseInt(f.estHrs) || 0) * 60 + (parseInt(f.estMin) || 0);
+        const bufferedMinutes = Math.round(rawMinutes * 1.05);
+        const bufHrs = Math.floor(bufferedMinutes / 60);
+        const bufMin = bufferedMinutes % 60;
         onCreate({
             id, name: f.name, dept: f.dept || "ENG", priority: f.priority, owner: f.owner, description: f.description,
             stage: "submitted", created: ts, due: f.due, tech: f.tech, material: firstMat?.matType || "—",
             qty: f.groups.reduce((a, g) => a + Number(g.qty), 0), printPct: 0, requestNote: f.notes, woId: null, machine: null,
-            imageUrl: f.imageUrl,
+            imageUrl: f.imageUrl, modelName: f.modelName || "",
+            estHrs: f.estHrs, estMin: f.estMin,
+            woPrintTime: `${bufHrs}h ${bufMin}m`,
             groups: f.groups,
             history: LIFECYCLE_STAGES.map((s, i) => ({ stage: s.id, done: false, time: i === 0 ? ts : "Pending", note: i === 0 ? `Submitted by ${f.owner}.` : "" })),
         });
@@ -138,7 +146,7 @@ export function NewRequestWizard({ onClose, onCreate }) {
                                 <input className="fi" type="number" min={0} placeholder="0" style={{ flex: 1 }} value={f.estHrs} onChange={e => set("estHrs", e.target.value)} />
                                 <input className="fi" type="number" min={0} placeholder="0" style={{ flex: 1 }} value={f.estMin} onChange={e => set("estMin", e.target.value)} />
                             </div>
-                            <div className="tiny">A 5% buffer will be automatically added to the start of the print.</div>
+                            <div className="tiny">A 5% buffer will be automatically added to the total print time.</div>
                         </div>
                     </div>
 
@@ -228,14 +236,14 @@ export function NewRequestWizard({ onClose, onCreate }) {
                                                         </div>
                                                         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 4 }}>
                                                             <div style={{ flex: "0 0 130px" }}>
-                                                                <label className="fl">Material Required (g)</label>
+                                                                <label className="fl">Material Required ({u})</label>
                                                                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                                                     <input className="fi" type="number" min={0} placeholder="0" value={mat.grams || ""} onChange={e => setMat(gi, mi, "grams", e.target.value)} style={{ fontFamily: "var(--fm)", fontSize: 11 }} />
-                                                                    <span className="tiny" style={{ flexShrink: 0 }}>g / item</span>
+                                                                    <span className="tiny" style={{ flexShrink: 0 }}>{u} / item</span>
                                                                 </div>
                                                             </div>
                                                             <div className="tiny" style={{ paddingBottom: 10, color: "var(--text3)" }}>
-                                                                {mat.grams && grp.qty ? <>Total: <strong style={{ color: "var(--text2)" }}>{(+mat.grams * +grp.qty).toLocaleString()} g</strong> for {grp.qty} items</> : "Enter grams per item to see total"}
+                                                                {mat.grams && grp.qty ? <>Total: <strong style={{ color: "var(--text2)" }}>{(+mat.grams * +grp.qty).toLocaleString()} {u}</strong> for {grp.qty} items</> : `Enter ${uFull} per item to see total`}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -262,14 +270,14 @@ export function NewRequestWizard({ onClose, onCreate }) {
                                                         {mat.matType && !mat.finish && <div className="tiny" style={{ color: "var(--text3)" }}>Select a finish to see available colors</div>}
                                                         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 4 }}>
                                                             <div style={{ flex: "0 0 130px" }}>
-                                                                <label className="fl">Material Required (g)</label>
+                                                                <label className="fl">Material Required ({u})</label>
                                                                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                                                     <input className="fi" type="number" min={0} placeholder="0" value={mat.grams || ""} onChange={e => setMat(gi, mi, "grams", e.target.value)} style={{ fontFamily: "var(--fm)", fontSize: 11 }} />
-                                                                    <span className="tiny" style={{ flexShrink: 0 }}>g / item</span>
+                                                                    <span className="tiny" style={{ flexShrink: 0 }}>{u} / item</span>
                                                                 </div>
                                                             </div>
                                                             <div className="tiny" style={{ paddingBottom: 10, color: "var(--text3)" }}>
-                                                                {mat.grams && grp.qty ? <>Total: <strong style={{ color: "var(--text2)" }}>{(+mat.grams * +grp.qty).toLocaleString()} g</strong> for {grp.qty} items</> : "Enter grams per item to see total"}
+                                                                {mat.grams && grp.qty ? <>Total: <strong style={{ color: "var(--text2)" }}>{(+mat.grams * +grp.qty).toLocaleString()} {u}</strong> for {grp.qty} items</> : `Enter ${uFull} per item to see total`}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -314,7 +322,7 @@ export function NewRequestWizard({ onClose, onCreate }) {
                             ))}
                         </div>
                         {f.modelName && <><div className="sep" /><div className="tiny mb4">3D MODEL FILE</div><div style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>📁 {f.modelName}</div></>}
-                        {f.imageUrl && <><div className="sep" /><div className="tiny mb4">REFERENCE IMAGE</div><img src={f.imageUrl} alt="Reference" style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: "var(--r2)", border: "1px solid var(--border)" }} /></>}
+                        {f.imageUrl && <><div className="sep" /><div className="tiny mb4">REFERENCE IMAGE</div><img src={f.imageUrl} alt="Reference" style={{ width: "100%", maxHeight: 180, objectFit: "contain", borderRadius: "var(--r2)", border: "1px solid var(--border)", background: "#f0f0f0" }} /></>}
                         {f.notes && <><div className="sep" /><div className="tiny mb4">PRINT NOTES</div><div className="dim small">{f.notes}</div></>}
                     </div>
                     <div style={{ background: "var(--adim)", border: "1px solid rgba(45,212,191,.2)", borderRadius: "var(--r2)", padding: 12, fontSize: 12 }}>
@@ -618,11 +626,6 @@ function ProjectLifecycle({ project, onAdvance, onBack, onEdit }) {
                                                             <div className="tiny mt4" style={{ color: livePct >= 100 ? "var(--green)" : "var(--accent)" }}>{livePct >= 100 ? "Print complete — advance to post-processing" : "Updating live..."}</div>
                                                         </div>
                                                     )}
-                                                    {isCur && project.stage !== "submitted" && (
-                                                        <div style={{ marginTop: 8 }}>
-                                                            <button className="btn btp bts" disabled={s.id === "printing" && livePct < 100} onClick={handleAction}>{actionLabel}</button>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -640,9 +643,13 @@ function ProjectLifecycle({ project, onAdvance, onBack, onEdit }) {
                             <button className="btn btg bts" style={{ fontSize: 10, padding: "3px 10px" }} onClick={() => onEdit(project)}>✎ Edit</button>
                         </div>
                         <div className="cb">
-                            {[["ID", project.id], ["Submitted", project.created], ["Due", project.due], ["Owner", project.owner], ["Tech", project.tech], ["Material", project.material], ["Qty", project.qty + " parts"], ["WO", project.woId || "—"], ["Machine", project.machine || "—"]].map(([k, v]) => (
-                                <div key={k} className="rowsb" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}><span className="tiny">{k}</span><span style={{ fontSize: 12, fontWeight: 500 }}>{v}</span></div>
-                            ))}
+                            {(() => {
+                                const estTime = (project.estHrs != null || project.estMin != null) ? `${project.estHrs || 0}h ${project.estMin || 0}m` : "—";
+                                const totalTime = project.woPrintTime || "—";
+                                return [["ID", project.id], ["Submitted", project.created], ["Due", project.due], ["Owner", project.owner], ["Tech", project.tech], ["Material", project.material], ["Qty", (project.qty || 0) + " parts"], ["Est. Time (excl. 5% buffer)", estTime], ["Total w/ 5% Buffer", totalTime], ["WO", project.woId || "—"], ["Machine", project.machine || "—"]].map(([k, v]) => (
+                                    <div key={k} className="rowsb" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}><span className="tiny">{k}</span><span style={{ fontSize: 12, fontWeight: 500 }}>{v}</span></div>
+                                ));
+                            })()}
                             {project.description && <><div className="sep" /><div className="tiny mb4">DESCRIPTION</div><div className="dim small">{project.description}</div></>}
                             {project.requestNote && <><div className="sep" /><div className="tiny mb4">PRINT NOTES</div><div className="dim small">{project.requestNote}</div></>}
                             {project.extraInfo && <><div className="sep" /><div className="tiny mb4">ADDITIONAL INFORMATION</div><div className="dim small">{project.extraInfo}</div></>}
@@ -654,9 +661,6 @@ function ProjectLifecycle({ project, onAdvance, onBack, onEdit }) {
                             <div className="ch"><span className="ct" style={{ color: "var(--accent)" }}>What Happens Next</span></div>
                             <div className="cb">
                                 <div className="dim small mb12">{nextGuide}</div>
-                                {project.stage !== "submitted" && (
-                                    <button className="btn btp bts" style={{ width: "100%" }} disabled={project.stage === "printing" && livePct < 100} onClick={handleAction}>{actionLabel}</button>
-                                )}
                             </div>
                         </div>
                     )}
@@ -683,6 +687,296 @@ function ProjectLifecycle({ project, onAdvance, onBack, onEdit }) {
 }
 
 /* ── main PrintRequests section ── */
+const EDIT_LABELS = ["General Info", "Items & Tech", "Files & Notes", "Review"];
+
+function EditWizard({ proj, onClose, onSave }) {
+    const [step, setStep] = useState(0);
+    // Parse woPrintTime to get original time (before 5% buffer was added)
+    function parseOriginalTime(woPrintTime) {
+        if (!woPrintTime) return { estHrs: 0, estMin: 0 };
+        const match = woPrintTime.match(/(\d+)h\s*(\d+)?m?/);
+        if (!match) return { estHrs: 0, estMin: 0 };
+        const totalMin = parseInt(match[1]) * 60 + parseInt(match[2] || 0);
+        const originalMin = Math.round(totalMin / 1.05);
+        return { estHrs: Math.floor(originalMin / 60), estMin: originalMin % 60 };
+    }
+    const parsedTime = parseOriginalTime(proj.woPrintTime);
+    const [f, setF] = useState({
+        name: proj.name || "",
+        dept: proj.dept || "",
+        projCode: proj.id || "",
+        owner: proj.owner || "",
+        priority: proj.priority || "normal",
+        due: proj.due || "",
+        description: proj.description || "",
+        tech: proj.tech || "FDM",
+        estHrs: parsedTime.estHrs,
+        estMin: parsedTime.estMin,
+        groups: proj.groups || [BLANK_GROUP()],
+        notes: proj.requestNote || "",
+        imageUrl: proj.imageUrl || "",
+        modelName: proj.modelName || "",
+        extraInfo: proj.extraInfo || "",
+    });
+    const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+    const u = f.tech === "SLA" ? "ml" : "g";
+    const uFull = f.tech === "SLA" ? "milliliters" : "grams";
+
+    const addGroup = () => setF(p => ({ ...p, groups: [...p.groups, BLANK_GROUP()] }));
+    const delGroup = (gi) => setF(p => ({ ...p, groups: p.groups.filter((_, i) => i !== gi) }));
+    const setGroup = (gi, k, v) => setF(p => { const g = [...p.groups]; g[gi] = { ...g[gi], [k]: v }; return { ...p, groups: g }; });
+    const addMat = (gi) => setF(p => { const g = [...p.groups]; g[gi] = { ...g[gi], materials: [...g[gi].materials, BLANK_MAT()] }; return { ...p, groups: g }; });
+    const delMat = (gi, mi) => setF(p => { const g = [...p.groups]; g[gi] = { ...g[gi], materials: g[gi].materials.filter((_, i) => i !== mi) }; return { ...p, groups: g }; });
+    const setMat = (gi, mi, k, v) => setF(p => { const g = [...p.groups]; const m = [...g[gi].materials]; m[mi] = { ...m[mi], [k]: v }; g[gi] = { ...g[gi], materials: m }; return { ...p, groups: g }; });
+
+    function save() {
+        const firstMat = f.groups[0]?.materials[0];
+        const rawMinutes = (parseInt(f.estHrs) || 0) * 60 + (parseInt(f.estMin) || 0);
+        const bufferedMinutes = Math.round(rawMinutes * 1.05);
+        const bufHrs = Math.floor(bufferedMinutes / 60);
+        const bufMin = bufferedMinutes % 60;
+        const updatedId = (f.projCode && f.projCode !== proj.id) ? f.projCode : proj.id;
+        const updated = {
+            ...proj,
+            id: updatedId,
+            name: f.name,
+            dept: f.dept,
+            owner: f.owner,
+            priority: f.priority,
+            due: f.due,
+            description: f.description,
+            tech: f.tech,
+            estHrs: f.estHrs,
+            estMin: f.estMin,
+            groups: f.groups,
+            material: firstMat?.matType || proj.material || "—",
+            qty: f.groups.reduce((a, g) => a + Number(g.qty || 0), 0),
+            requestNote: f.notes,
+            extraInfo: f.extraInfo,
+            imageUrl: f.imageUrl,
+            modelName: f.modelName,
+            woPrintTime: `${bufHrs}h ${bufMin}m`,
+        };
+        onSave(updated);
+    }
+
+    return (
+        <Modal
+            title={`Edit Request — ${f.projCode || proj.id}`}
+            onClose={onClose}
+            footer={(
+                <>
+                    <button className="btn btg bts" onClick={onClose}>Cancel</button>
+                    {step > 0 && <button className="btn btg bts" onClick={() => setStep(s => s - 1)}>Back</button>}
+                    {step < EDIT_LABELS.length - 1
+                        ? <button className="btn btp bts" onClick={() => setStep(s => s + 1)}>Next</button>
+                        : <button className="btn btp bts" onClick={save}>Save Changes</button>}
+                </>
+            )}
+        >
+            <div className="wiz-steps">
+                {EDIT_LABELS.map((label, i) => (
+                    <div key={i} className={`wz-s ${i < step ? "wz-done" : i === step ? "wz-act" : ""}`}>
+                        <div className="wz-num">{i < step ? "✓" : i + 1}</div>{label}
+                    </div>
+                ))}
+            </div>
+
+            {/* Stage 1: General Info */}
+            {step === 0 && (
+                <div>
+                    <div className="frow"><div className="fg"><label className="fl">Part / Project Name *</label><input className="fi" placeholder="e.g. PCB Alignment Jig Mk4" value={f.name} onChange={e => set("name", e.target.value)} /></div></div>
+                    <div className="frow">
+                        <div className="fg"><label className="fl">Department</label><input className="fi" placeholder="e.g. Engineering, R&D, Design..." value={f.dept} onChange={e => set("dept", e.target.value)} /></div>
+                        <div className="fg"><label className="fl">Your Name *</label><input className="fi" placeholder="Full name" value={f.owner} onChange={e => set("owner", e.target.value)} /></div>
+                    </div>
+                    <div className="frow">
+                        <div className="fg"><label className="fl">Project Code</label><input className="fi" placeholder="e.g. PRJ-112" value={f.projCode} onChange={e => set("projCode", e.target.value)} /></div>
+                        <div className="fg"><label className="fl">Priority</label><select className="fsel" value={f.priority} onChange={e => set("priority", e.target.value)}><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
+                    </div>
+                    <div className="frow">
+                        <div className="fg"><label className="fl">Required By *</label><input type="date" className="fi" value={f.due} onChange={e => set("due", e.target.value)} /></div>
+                    </div>
+                    <div className="fg"><label className="fl">Description</label><textarea className="fta" placeholder="What is this part for?" value={f.description} onChange={e => set("description", e.target.value)}></textarea></div>
+                </div>
+            )}
+
+            {/* Stage 2: Items & Tech */}
+            {step === 1 && (
+                <div>
+                    <div className="frow mb12" style={{ alignItems: "flex-start", gap: 16 }}>
+                        <div>
+                            <label className="fl">Reference Image</label>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                                {f.imageUrl ? (
+                                    <img src={f.imageUrl} alt="Reference" style={{ width: 80, height: 80, borderRadius: "var(--r2)", objectFit: "cover", border: "1px solid var(--border)" }} />
+                                ) : (
+                                    <div style={{ width: 80, height: 80, border: "2px dashed var(--border2)", borderRadius: "var(--r2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", background: "var(--bg3)" }}>
+                                        <span style={{ fontSize: 22, color: "var(--text3)" }}>↑</span>
+                                    </div>
+                                )}
+                                <input type="file" accept="image/*" style={{ display: "none" }} id="editImgUp" onChange={e => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (ev) => set("imageUrl", ev.target.result); reader.readAsDataURL(file); } }} />
+                                <label htmlFor="editImgUp" className="btn btg bts" style={{ fontSize: 10, cursor: "pointer", textAlign: "center" }}>{f.imageUrl ? "Change" : "Upload"}</label>
+                            </div>
+                        </div>
+                        <div className="fg">
+                            <label className="fl">Est. Time per Item</label>
+                            <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+                                <input className="fi" type="number" min={0} placeholder="0" style={{ flex: 1 }} value={f.estHrs} onChange={e => set("estHrs", e.target.value)} />
+                                <input className="fi" type="number" min={0} placeholder="0" style={{ flex: 1 }} value={f.estMin} onChange={e => set("estMin", e.target.value)} />
+                            </div>
+                            <div className="tiny">A 5% buffer will be automatically added.</div>
+                        </div>
+                    </div>
+                    <div className="frow">
+                        <div className="fg"><label className="fl">Technology *</label><select className="fsel" value={f.tech} onChange={e => set("tech", e.target.value)}><option>FDM</option><option>SLA</option><option>SLS</option></select></div>
+                    </div>
+                    <div className="rowsb mb8 mt4">
+                        <span style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700 }}>Project Items &amp; Materials</span>
+                        <span className="tiny">Total Groups: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{f.groups.length}</span></span>
+                    </div>
+                    {f.groups.map((grp, gi) => {
+                        const cat = MAT_CATALOG[f.tech] || MAT_CATALOG.FDM;
+                        return (
+                            <div key={gi} style={{ border: "1px solid var(--border2)", borderRadius: "var(--r2)", marginBottom: 12, overflow: "hidden" }}>
+                                <div style={{ background: "var(--bg3)", padding: "8px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <span style={{ fontFamily: "var(--fm)", fontSize: 10, color: "var(--text3)" }}>ITEM GROUP {gi + 1}</span>
+                                    {f.groups.length > 1 && <button onClick={() => delGroup(gi)} style={{ background: "none", border: "none", color: "var(--red)", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>✕</button>}
+                                </div>
+                                <div style={{ padding: 12 }}>
+                                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 }}>
+                                        <div style={{ width: 90, flexShrink: 0 }}>
+                                            <label className="fl">Item Qty</label>
+                                            <input className="fi" type="number" min={1} value={grp.qty} style={{ textAlign: "center" }} onChange={e => setGroup(gi, "qty", e.target.value)} />
+                                        </div>
+                                        <div className="fg" style={{ paddingTop: 14, color: "var(--text3)", fontSize: 11 }}>items in this group — each may have multiple materials below</div>
+                                    </div>
+                                    {grp.materials.map((mat, mi) => (
+                                        <div key={mi} style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "10px 12px", marginBottom: 8, position: "relative" }}>
+                                            {grp.materials.length > 1 && <button onClick={() => delMat(gi, mi)} style={{ position: "absolute", top: 6, right: 8, background: "none", border: "none", color: "var(--red)", cursor: "pointer", fontSize: 13 }}>🗑</button>}
+                                            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginBottom: 8, paddingRight: 20 }}>
+                                                <span className="tiny">Custom Material</span>
+                                                <div onClick={() => setMat(gi, mi, "custom", !mat.custom)} style={{ width: 36, height: 20, borderRadius: 10, background: mat.custom ? "var(--accent)" : "var(--border2)", cursor: "pointer", position: "relative", transition: "background .15s", flexShrink: 0 }}>
+                                                    <div style={{ position: "absolute", top: 2, left: mat.custom ? 16 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .15s", boxShadow: "0 1px 2px rgba(0,0,0,.2)" }} />
+                                                </div>
+                                            </div>
+                                            {mat.custom ? (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                    <div style={{ display: "flex", gap: 8 }}>
+                                                        <div className="fg">
+                                                            <label className="fl">Material Type</label>
+                                                            <select className="fsel" value={mat.matType} onChange={e => setMat(gi, mi, "matType", e.target.value)}><option value="">Select…</option>{cat.types.map(t => <option key={t}>{t}</option>)}</select>
+                                                        </div>
+                                                        <div className="fg">
+                                                            <label className="fl">Finish</label>
+                                                            <select className="fsel" value={mat.finish} onChange={e => setMat(gi, mi, "finish", e.target.value)}><option value="">Select…</option>{cat.finishes.map(t => <option key={t}>{t}</option>)}</select>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                                                        <div style={{ flexShrink: 0 }}>
+                                                            <label className="fl">Color</label>
+                                                            <label style={{ display: "block", width: 38, height: 38, borderRadius: "var(--r2)", overflow: "hidden", border: "2px solid var(--border2)", cursor: "pointer", background: mat.customHex || "#000000" }}>
+                                                                <input type="color" value={mat.customHex || "#000000"} onChange={e => setMat(gi, mi, "customHex", e.target.value)} style={{ opacity: 0, width: "100%", height: "100%", border: "none", cursor: "pointer", padding: 0 }} />
+                                                            </label>
+                                                        </div>
+                                                        <div className="fg">
+                                                            <label className="fl">Color Name</label>
+                                                            <input className="fi" placeholder="e.g. Midnight Blue…" value={mat.customName || ""} onChange={e => setMat(gi, mi, "customName", e.target.value)} />
+                                                        </div>
+                                                        <div style={{ flex: "0 0 100px" }}>
+                                                            <label className="fl">Hex</label>
+                                                            <input className="fi" placeholder="#000000" maxLength={7} value={mat.customHex || ""} onChange={e => setMat(gi, mi, "customHex", e.target.value)} style={{ fontFamily: "var(--fm)", fontSize: 11 }} />
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 4 }}>
+                                                        <div style={{ flex: "0 0 130px" }}>
+                                                            <label className="fl">Material Required ({u})</label>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                                                <input className="fi" type="number" min={0} placeholder="0" value={mat.grams || ""} onChange={e => setMat(gi, mi, "grams", e.target.value)} style={{ fontFamily: "var(--fm)", fontSize: 11 }} />
+                                                                <span className="tiny" style={{ flexShrink: 0 }}>{u} / item</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="tiny" style={{ paddingBottom: 10, color: "var(--text3)" }}>{mat.grams && grp.qty ? <>Total: <strong style={{ color: "var(--text2)" }}>{(+mat.grams * +grp.qty).toLocaleString()} {u}</strong></> : `Enter ${uFull} per item to see total`}</div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                    <div style={{ display: "flex", gap: 8 }}>
+                                                        <div className="fg">
+                                                            <label className="fl">Material Type</label>
+                                                            <select className="fsel" value={mat.matType} onChange={e => { setMat(gi, mi, "matType", e.target.value); setMat(gi, mi, "matName", ""); }}><option value="">Select…</option>{cat.types.map(t => <option key={t}>{t}</option>)}</select>
+                                                        </div>
+                                                        <div className="fg">
+                                                            <label className="fl">Finish</label>
+                                                            <select className="fsel" value={mat.finish} onChange={e => setMat(gi, mi, "finish", e.target.value)}><option value="">Select…</option>{cat.finishes.map(t => <option key={t}>{t}</option>)}</select>
+                                                        </div>
+                                                    </div>
+                                                    {mat.matType && mat.finish && <ColorPicker cat={cat} mat={mat} gi={gi} mi={mi} setMat={setMat} />}
+                                                    {mat.matType && !mat.finish && <div className="tiny" style={{ color: "var(--text3)" }}>Select a finish to see available colors</div>}
+                                                    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 4 }}>
+                                                        <div style={{ flex: "0 0 130px" }}>
+                                                            <label className="fl">Material Required ({u})</label>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                                                <input className="fi" type="number" min={0} placeholder="0" value={mat.grams || ""} onChange={e => setMat(gi, mi, "grams", e.target.value)} style={{ fontFamily: "var(--fm)", fontSize: 11 }} />
+                                                                <span className="tiny" style={{ flexShrink: 0 }}>{u} / item</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="tiny" style={{ paddingBottom: 10, color: "var(--text3)" }}>{mat.grams && grp.qty ? <>Total: <strong style={{ color: "var(--text2)" }}>{(+mat.grams * +grp.qty).toLocaleString()} {u}</strong></> : `Enter ${uFull} per item to see total`}</div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <button className="btn btg bts" onClick={() => addMat(gi)} style={{ fontSize: 11, marginTop: 2 }}>⊕ Add Material to this Item</button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    <button className="btn btg bts" onClick={addGroup} style={{ fontSize: 11 }}>⊕ Add Item Group</button>
+                </div>
+            )}
+
+            {/* Stage 3: Files & Notes */}
+            {step === 2 && (
+                <div>
+                    <div className="fg mb12"><label className="fl">Print Notes / Special Requirements</label><textarea className="fta" style={{ minHeight: 100 }} placeholder="Tolerances, surface finish, orientation, support strategy..." value={f.notes} onChange={e => set("notes", e.target.value)}></textarea></div>
+                    <div className="card mb12" style={{ textAlign: "center", padding: 20, boxShadow: "none", border: "1px solid var(--border)" }}>
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>3D Model Files</div>
+                        <label style={{ border: "2px dashed var(--border2)", borderRadius: "var(--r2)", padding: "24px 20px", textAlign: "center", color: "var(--text3)", fontSize: 12, cursor: "pointer", display: "block", transition: "all .15s" }}>
+                            <div style={{ fontSize: 28, marginBottom: 6 }}>📁</div>
+                            {f.modelName ? <span style={{ color: "var(--green)" }}>✓ {f.modelName}</span> : <span>Click to upload .STL / .STEP / .3MF</span>}
+                            <input type="file" accept=".stl,.step,.stp,.3mf" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) set("modelName", e.target.files[0].name); }} />
+                        </label>
+                    </div>
+                    <div className="fg mb12"><label className="fl">Additional Information</label><textarea className="fta" style={{ minHeight: 80 }} placeholder="Any extra information, context, or updates..." value={f.extraInfo} onChange={e => set("extraInfo", e.target.value)}></textarea></div>
+                </div>
+            )}
+
+            {/* Stage 4: Review */}
+            {step === 3 && (
+                <div>
+                    <div style={{ background: "var(--bg3)", borderRadius: "var(--r2)", padding: 14, border: "1px solid var(--border)", marginBottom: 12 }}>
+                        <div style={{ fontFamily: "var(--fd)", fontSize: 14, fontWeight: 800, marginBottom: 10 }}>{f.name || "—"}</div>
+                        <div className="g g2">
+                            {[["Owner", f.owner], ["Department", f.dept || "—"], ["Project Code", f.projCode || "—"], ["Priority", f.priority], ["Required By", f.due || "—"], ["Technology", f.tech], ["Est. Time (excl. 5% buffer)", `${f.estHrs}h ${f.estMin}m`], ["Total w/ 5% buffer", (() => { const totalMin = ((parseInt(f.estHrs) || 0) * 60 + (parseInt(f.estMin) || 0)) * 1.05; const h = Math.floor(totalMin / 60); const m = Math.round(totalMin % 60); return `${h}h ${m}m`; })()], ["Item Groups", (f.groups || []).length + ""]].map(([k, v]) => (
+                                <div key={k}><div className="tiny mb4">{k.toUpperCase()}</div><div style={{ fontSize: 12, fontWeight: 500 }}>{v || "—"}</div></div>
+                            ))}
+                        </div>
+                        {f.modelName && <><div className="sep" /><div className="tiny mb4">3D MODEL FILE</div><div style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>📁 {f.modelName}</div></>}
+                        {f.imageUrl && <><div className="sep" /><div className="tiny mb4">REFERENCE IMAGE</div><img src={f.imageUrl} alt="Reference" style={{ width: "100%", maxHeight: 120, objectFit: "contain", borderRadius: "var(--r2)", border: "1px solid var(--border)", background: "#f0f0f0" }} /></>}
+                        {f.notes && <><div className="sep" /><div className="tiny mb4">PRINT NOTES</div><div className="dim small">{f.notes}</div></>}
+                        {f.extraInfo && <><div className="sep" /><div className="tiny mb4">ADDITIONAL INFO</div><div className="dim small">{f.extraInfo}</div></>}
+                    </div>
+                    <div style={{ padding: 10, background: "var(--adim)", border: "1px solid rgba(45,212,191,.2)", borderRadius: "var(--r2)", fontSize: 11 }}>
+                        <div style={{ color: "var(--accent)", fontFamily: "var(--fd)", fontWeight: 700, marginBottom: 4 }}>ℹ️ Changes will be saved</div>
+                        <div style={{ color: "var(--text2)" }}>Updates will be logged in the project history and visible to all team members.</div>
+                    </div>
+                </div>
+            )}
+        </Modal>
+    );
+}
+
 export function PrintRequests({ lcProjects, onLcProjectsChange, toast }) {
     const [sel, setSel] = useState(null);
     const [showWiz, setShowWiz] = useState(false);
@@ -701,8 +995,6 @@ export function PrintRequests({ lcProjects, onLcProjectsChange, toast }) {
         { id: "printing", label: "Printing", icon: "🖨" },
         { id: "postproc", label: "Post-Process", icon: "⚙" },
         { id: "qa", label: "QA", icon: "✅" },
-        { id: "handoff", label: "Dept Handoff", icon: "📦" },
-        { id: "evaluation", label: "Evaluation", icon: "📊" },
         { id: "closed", label: "Closed", icon: "🎯" }
     ];
 
@@ -722,34 +1014,26 @@ export function PrintRequests({ lcProjects, onLcProjectsChange, toast }) {
     });
 
     function handleCreate(proj) {
-        // 1. Update Local UI Optimistically
+        // 1. Update Local UI — always keep user's project code as the ID
         onLcProjectsChange([proj, ...lcProjects]);
         setShowWiz(false);
         setSel(proj.id);
         toast("Request " + proj.id + " submitted — awaiting AM Review", "s");
 
-        // 2. Save Project to Database & sync ID to prevent duplicates on reload
+        // 2. Save to DB (fire-and-forget — local state is source of truth)
         api.createProject({
             name: proj.name,
             dept: proj.dept,
             priority: proj.priority,
-            due_date: proj.due
-        }).then(response => {
-            const backendId = response.custom_id || response.id;
-            if (backendId && backendId !== proj.id) {
-                onLcProjectsChange(prev => prev.map(p => p.id === proj.id ? { ...p, id: backendId } : p));
-                setSel(backendId);
-            }
-            console.log("Project saved to DB:", response);
+            due_date: proj.due,
+            custom_id: proj.id,  // send user's code to backend for reference
         }).catch(err => {
-            console.error("Failed to save project to DB:", err);
+            console.warn("DB sync failed (project still saved locally):", err);
         });
     }
 
     function openEdit(proj) {
         setEditModal(proj.id);
-        setEditNotes(proj.requestNote || "");
-        setEditExtraInfo(proj.extraInfo || "");
     }
 
     function saveEdit() {
@@ -788,7 +1072,32 @@ export function PrintRequests({ lcProjects, onLcProjectsChange, toast }) {
     }
 
     if (selProject) {
-        return <ProjectLifecycle project={selProject} onAdvance={handleAdvance} onBack={() => setSel(null)} onEdit={openEdit} />;
+        return (
+            <>
+                <ProjectLifecycle project={selProject} onAdvance={handleAdvance} onBack={() => setSel(null)} onEdit={openEdit} />
+                {editModal && (() => {
+                    const projToEdit = lcProjects.find(p => p.id === editModal);
+                    return projToEdit ? (
+                        <EditWizard
+                            proj={projToEdit}
+                            onClose={() => setEditModal(null)}
+                            onSave={(updated) => {
+                                const oldId = editModal;
+                                onLcProjectsChange(prev => {
+                                    // Remove old ID entry, add new ID entry (handles ID change)
+                                    const filtered = prev.filter(p => p.id !== oldId);
+                                    return [...filtered, updated];
+                                });
+                                // Update editModal to new ID so subsequent edits work
+                                setEditModal(updated.id);
+                                setSel(updated.id);
+                                toast("Request updated successfully", "s");
+                            }}
+                        />
+                    ) : null;
+                })()}
+            </>
+        );
     }
 
     const pendingCount = lcProjects.filter(p => ["submitted", "review"].includes(p.stage)).length;
@@ -923,59 +1232,23 @@ export function PrintRequests({ lcProjects, onLcProjectsChange, toast }) {
 
             {/* Edit Request Info Modal */}
             {editModal && (() => {
-                const proj = lcProjects.find(p => p.id === editModal);
-                return (
-                    <Modal
-                        title={`Edit Request Info — ${proj?.id}`}
-                        onClose={() => { setEditModal(null); setEditNotes(""); setEditExtraInfo(""); }}
-                        footer={(
-                            <>
-                                <button className="btn btg bts" onClick={() => { setEditModal(null); setEditNotes(""); setEditExtraInfo(""); }}>Cancel</button>
-                                <button className="btn btp bts" onClick={saveEdit}>Save Changes</button>
-                            </>
-                        )}
-                    >
-                        <div style={{ background: "var(--bg3)", borderRadius: "var(--r2)", padding: 14, border: "1px solid var(--border)", marginBottom: 16 }}>
-                            <div className="rowsb mb6">
-                                <span className="tiny" style={{ color: "var(--text3)" }}>Project</span>
-                                <span style={{ fontSize: 13, fontWeight: 700 }}>{proj?.name}</span>
-                            </div>
-                            <div className="rowsb">
-                                <span className="tiny" style={{ color: "var(--text3)" }}>Stage</span>
-                                <span style={{ fontSize: 12 }}>{proj?.stage}</span>
-                            </div>
-                        </div>
-
-                        <div className="fg mb12">
-                            <label className="fl">Print Notes / Special Requirements</label>
-                            <textarea
-                                className="fta"
-                                style={{ minHeight: 100 }}
-                                placeholder="Tolerances, surface finish, orientation, support strategy..."
-                                value={editNotes}
-                                onChange={e => setEditNotes(e.target.value)}
-                            />
-                        </div>
-
-                        <div className="fg mb12">
-                            <label className="fl">Additional Information</label>
-                            <textarea
-                                className="fta"
-                                style={{ minHeight: 100 }}
-                                placeholder="Any extra information, context, or updates for the AM team..."
-                                value={editExtraInfo}
-                                onChange={e => setEditExtraInfo(e.target.value)}
-                            />
-                        </div>
-
-                        <div style={{ padding: 10, background: "var(--adim)", border: "1px solid rgba(45,212,191,.2)", borderRadius: "var(--r2)", fontSize: 11 }}>
-                            <div style={{ color: "var(--accent)", fontFamily: "var(--fd)", fontWeight: 700, marginBottom: 4 }}>ℹ️ Information</div>
-                            <div style={{ color: "var(--text2)" }}>
-                                Updates will be logged in the project history and visible to all team members.
-                            </div>
-                        </div>
-                    </Modal>
-                );
+                const projToEdit = lcProjects.find(p => p.id === editModal);
+                return projToEdit ? (
+                    <EditWizard
+                        proj={projToEdit}
+                        onClose={() => setEditModal(null)}
+                        onSave={(updated) => {
+                            const oldId = editModal;
+                            onLcProjectsChange(prev => {
+                                const filtered = prev.filter(p => p.id !== oldId);
+                                return [...filtered, updated];
+                            });
+                            setEditModal(updated.id);
+                            setSel(updated.id);
+                            toast("Request updated successfully", "s");
+                        }}
+                    />
+                ) : null;
             })()}
         </div>
     );

@@ -5,7 +5,6 @@ export const NAV = [
     { id: "projects", icon: "▤", label: "Projects & Work Orders", group: "OPERATIONS" },
     { id: "fleet", icon: "▣", label: "Printer Fleet", group: "OPERATIONS" },
     { id: "schedule", icon: "▦", label: "Print Schedule", group: "OPERATIONS" },
-    { id: "allotment", icon: "⇌", label: "Job Allotment", group: "OPERATIONS" },
 
     { id: "rawmat", icon: "▥", label: "Raw Material Inventory", group: "OPERATIONS" },
     { id: "spares", icon: "⊞", label: "Spares & Stores", group: "OPERATIONS" },

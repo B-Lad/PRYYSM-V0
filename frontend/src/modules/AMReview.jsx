@@ -6,6 +6,7 @@ import {
 } from '../data/seed.jsx';
 import { MAT_CATALOG } from '../data/matCatalog.js';
 import { TB, SB, DB, Modal, Prog, AStrip, Tabs } from '../components/atoms.jsx';
+import { ScheduleGantt } from '../components/ScheduleGantt.jsx';
 import { RMI_STATUS_BADGE, RMI_STATUS_LBL } from './RawMaterialInventory.jsx';
 import { SPARE_STATUS_BADGE, SPARE_STATUS_LABEL } from './SpareStores.jsx';
 import { api } from '../services/api.js'; // Import API
@@ -49,7 +50,7 @@ function ReviewSection({ num, title, status, children }) {
     );
 }
 
-export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
+export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignments, onPrinterAssignmentsChange }) {
     const pending = lcProjects.filter(p => ["submitted", "review"].includes(p.stage));
     const reviewed = lcProjects.filter(p => !["submitted", "review"].includes(p.stage));
 
@@ -71,6 +72,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
     const [spareRequests, setSpareRequests] = useState([]);   // [{ name, category, qty, urgency, supplier, cost, notes }]
     const [spareConfirmed, setSpareConfirmed] = useState({}); // { id: bool }
     const [spareNote, setSpareNote] = useState("");
+    const [spareListConfirmed, setSpareListConfirmed] = useState(false);
     const [extraCost, setExtraCost] = useState(false);
     const [costItems, setCostItems] = useState([{ desc: "", amount: "" }]);
     const [postProc, setPostProc] = useState({});
@@ -96,7 +98,12 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
     const [jaShowAutoConfirm, setJaShowAutoConfirm] = useState(null);
     const [jaShowManual, setJaShowManual] = useState(null);
     const [jaShowPrintLog, setJaShowPrintLog] = useState(null);
+    const [jaCustomDate, setJaCustomDate] = useState("");
+    const [jaCustomTime, setJaCustomTime] = useState("");
+    const [selectedGroups, setSelectedGroups] = useState([]);
     const [ganttFilter, setGanttFilter] = useState("all");
+    const [ganttDate, setGanttDate] = useState(new Date("2026-04-23"));
+    const [ganttView, setGanttView] = useState("day");
 
     const REVIEW_TABS = [
         { id: "slots", label: "① Job Allotment" },
@@ -111,9 +118,9 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
     function openReview(p) {
         setSel(p);
         setReviewTab("slots");
-        setSlotPrinter(null); setSlotStartTime(""); setGanttFilter("all");
+        setSlotPrinter(null); setSlotStartTime(""); setJaCustomDate(""); setJaCustomTime(""); setSelectedGroups([]); setGanttFilter("all"); setGanttDate(new Date("2026-04-23")); setGanttView("day");
         setMatStatus(null); setMatConfirmedIds({}); setMatOrderNote("");
-        setSpareStatus(null); setSpareRequired([]); setSparePartSelect(""); setSparePartQty(1); setSpareRequests([]); setSpareConfirmed({}); setSpareNote("");
+        setSpareStatus(null); setSpareRequired([]); setSparePartSelect(""); setSparePartQty(1); setSpareRequests([]); setSpareConfirmed({}); setSpareNote(""); setSpareListConfirmed(false);
         setExtraCost(false); setCostItems([{ desc: "", amount: "" }]);
         setPostProc({}); setCustomPostProc([]); setNewPostProc(""); setPpInstructions({}); setPpDone({}); setPpComments({});
         setQcChecks({}); setCustomQC([]); setNewQC(""); setQcInstructions({}); setQcDone({}); setQcComments({});
@@ -181,7 +188,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
     const tabStatus = {
         slots: slotPrinter ? "ok" : null,
         material: matStatus === "ok" ? "ok" : matStatus ? "warn" : null,
-        spares: Object.values(spareConfirmed).some(Boolean) ? (SPARE_SEED.some(s => s.status === "critical" && !spareConfirmed[s.id]) ? "warn" : "ok") : null,
+        spares: spareListConfirmed ? "ok" : spareRequired.length > 0 ? "warn" : null,
         cost: extraCost ? "warn" : "ok",
         pp: Object.values(postProc).some(Boolean) ? "ok" : null,
         qc: Object.values(qcChecks).some(Boolean) ? "ok" : null,
@@ -313,166 +320,272 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
 
             {/* ── TAB: JOB ALLOTMENT ── */}
             {reviewTab === "slots" && (() => {
-                const priorityBadge = { low: "bnorm", medium: "bwait", high: "burgent" };
-                const PRINT_LOG = [
-                    { job: "Job 2 for PRUSA01", code: "BUSY-PRUSA01", start: "19-03 18:29", dur: "9h" },
-                    { job: "Job 3 for PRUSA01", code: "BUSY-PRUSA01", start: "20-03 03:29", dur: "9h" },
-                    { job: "Job 4 for PRUSA01", code: "BUSY-PRUSA01", start: "20-03 12:29", dur: "12h" },
-                    { job: "Job 5 for PRUSA01", code: "BUSY-PRUSA01", start: "20-03 22:29", dur: "—" },
-                ];
-                // Build a single queue entry for the current request being reviewed
-                const thisJob = [{
-                    id: sel.id,
-                    code: sel.id,
-                    name: sel.name,
-                    estTime: woPrintTime || "—",
-                    items: sel.qty,
-                    priority: sel.priority || "normal",
-                    tech: sel.tech,
-                    deadline: sel.due || "—",
-                    status: "unassigned",
-                }];
+                const priorityBadge = { low: "bnorm", medium: "bwait", high: "burgent", normal: "bnorm" };
+
+// Build allotted jobs from printerAssignments
+                const allottedJobs = Object.entries(printerAssignments).map(([projectId, assignment]) => {
+                    const isGroupAssignment = projectId.includes("-grp");
+                    const baseProjectId = isGroupAssignment ? projectId.split("-grp")[0] : projectId;
+                    const groupIndex = isGroupAssignment ? parseInt(projectId.split("-grp")[1]) : null;
+                    const project = lcProjects.find(p => p.id === baseProjectId) || assignment.projectData;
+                    const groupData = isGroupAssignment && groupIndex !== null ? (project?.groups?.[groupIndex] || {}) : {};
+                    const printerData = SCHEDULE_JOBS.find(p => p.printer === assignment.printer || p.printerCode === assignment.printer);
+                    let startHour = 10;
+                    let startDate = new Date("2026-04-23");
+                    const todayTomorrowMatch = assignment.startTime?.match(/(Today|Tomorrow)\s+(\d{2}):(\d{2})/);
+                    if (todayTomorrowMatch) {
+                        startHour = parseInt(todayTomorrowMatch[2]);
+                        if (todayTomorrowMatch[1] === "Tomorrow") {
+                            startDate = new Date("2026-04-24");
+                        }
+                    } else {
+                        const customDateMatch = assignment.startTime?.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}):(\d{2})/);
+                        if (customDateMatch) {
+                            startDate = new Date(customDateMatch[1]);
+                            startHour = parseInt(customDateMatch[2]);
+                        }
+                    }
+                    const estHrs = groupData.estHrs ?? project?.estHrs ?? 4;
+                    const estMin = groupData.estMin ?? project?.estMin ?? 0;
+                    const rawMin = ((parseInt(estHrs) * 60 + parseInt(estMin)) * 1.05);
+                    const durHrs = rawMin / 60;
+                    return {
+                        id: `ALLOT-${projectId}`,
+                        printer: assignment.printer,
+                        printerCode: printerData?.printerCode || assignment.printer,
+                        job: groupData.name || groupData.qty ? `${project?.name || baseProjectId} (Grp ${(groupIndex || 0) + 1})` : (project?.name || baseProjectId),
+                        projectNo: projectId,
+                        start: startHour,
+                        startDate: startDate.toISOString().split("T")[0],
+                        dur: Math.ceil(durHrs),
+                        tech: project?.tech || "FDM",
+                        status: "scheduled",
+                        client: project?.owner || "",
+                        material: project?.material || "",
+                        imageUrl: project?.imageUrl || "",
+                        isAllotted: true,
+                        confirmed: assignment.confirmed || false,
+                    };
+                });
+
+                // Merge SCHEDULE_JOBS with allotted jobs (allotted take priority for same printer at overlapping times)
+                const allJobs = [...SCHEDULE_JOBS, ...allottedJobs];
+
+                // Current review project assignment
+                const currentAssignment = printerAssignments[sel.id];
+
+                function assignPrinter(projectId, printer, startTime, groupIndex = null) {
+                    const fullId = groupIndex !== null ? `${projectId}-grp${groupIndex}` : projectId;
+                    const project = lcProjects.find(p => p.id === projectId);
+                    onPrinterAssignmentsChange(prev => ({ ...prev, [fullId]: { printer, startTime, projectData: project, confirmed: false, groupIndex } }));
+                    if (projectId === sel.id) {
+                        setSlotPrinter(printer);
+                        setSlotStartTime(startTime);
+                    }
+                    toast(`Assigned to ${printer}${groupIndex !== null ? ` (Grp ${groupIndex + 1})` : ""}`, "s");
+                }
+
+                function unassignPrinter(projectId) {
+                    onPrinterAssignmentsChange(prev => {
+                        const next = { ...prev };
+                        delete next[projectId];
+                        return next;
+                    });
+                    if (projectId === sel.id) {
+                        setSlotPrinter(null);
+                        setSlotStartTime("");
+                    }
+                }
+
+                function handleJobClick(job) {
+                    if (job.isAllotted) {
+                        const projectId = job.projectNo;
+                        const assignment = printerAssignments[projectId];
+                        if (assignment) {
+                            const project = lcProjects.find(p => p.id === projectId) || assignment.projectData;
+                            setJaShowPrintLog({
+                                ...job,
+                                name: project?.name || job.job,
+                                projectData: project,
+                            });
+                        }
+                    } else if (job.job) {
+                        setJaShowPrintLog(job);
+                    }
+                }
+
                 return (
                     <div>
                         {/* ── Header ── */}
                         <div className="mb14">
                             <div style={{ fontFamily: "var(--fd)", fontSize: 14, fontWeight: 700 }}>Job Allotment</div>
-                            <div className="tiny dim">Assign this request to an available printer</div>
+                            <div className="tiny dim">Assign this request to an available printer using the schedule below</div>
                         </div>
 
-                        {/* ── Gantt Chart from Print Schedule ── */}
-                        <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>
-                            Current Print Schedule — Day View
-                        </div>
-                        <div className="card mb16" style={{ boxShadow: "none", border: "1px solid var(--border)" }}>
-                            <div className="ch" style={{ padding: "8px 14px" }}>
-                                <span className="ct">Schedule Gantt</span>
-                                <div className="row" style={{ gap: 6 }}>
-                                    {[["All", "all"], ["FDM", "FDM"], ["SLA", "SLA"], ["SLS", "SLS"]].map(([label, val]) => (
-                                        <button key={val} onClick={() => setGanttFilter(val)} className={`btn bts ${ganttFilter === val ? "btp" : "btg"}`} style={{ fontSize: 10, padding: "3px 10px" }}>{label}</button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div style={{ overflowX: "auto" }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "140px repeat(17,1fr)", borderBottom: "1px solid var(--border)", background: "var(--bg3)", minWidth: 640 }}>
-                                    <div style={{ padding: "6px 12px", fontFamily: "var(--fm)", fontSize: 9, letterSpacing: "1.2px", color: "var(--text3)", textTransform: "uppercase", borderRight: "1px solid var(--border)" }}>Printer</div>
-                                    {Array.from({ length: 17 }, (_, i) => i).map(h => (
-                                        <div key={h} style={{ padding: "6px 2px", fontFamily: "var(--fm)", fontSize: 9, color: "var(--text3)", textAlign: "center", borderRight: "1px solid var(--border)" }}>{String(h + 6).padStart(2, "0")}:00</div>
-                                    ))}
-                                </div>
-                                {(ganttFilter === "all" ? SCHEDULE_JOBS : SCHEDULE_JOBS.filter(j => j.tech === ganttFilter)).map(row => {
-                                    const isSelected = slotPrinter === row.printer;
-                                    const colPct = 100 / 17;
-                                    return (
-                                        <div key={row.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(17,1fr)", borderBottom: "1px solid var(--border)", minHeight: 40, position: "relative", minWidth: 640, background: isSelected ? "rgba(37,99,235,.03)" : "" }}>
-                                            <div style={{ padding: "8px 12px", borderRight: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6 }}>
-                                                <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: row.status === "printing" ? "var(--green)" : row.status === "maintenance" ? "var(--yellow)" : "var(--border2)" }} />
-                                                <div style={{ fontSize: 10.5, fontWeight: isSelected ? 700 : 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: isSelected ? "var(--accent)" : row.status === "maintenance" ? "var(--yellow)" : "var(--text)" }}>
-                                                    {row.printer}{isSelected ? " ✓" : ""}
-                                                </div>
-                                            </div>
-                                            {Array.from({ length: 17 }, (_, h) => (
-                                                <div key={h} style={{ borderRight: "1px solid var(--border)", background: h === 4 ? "rgba(37,99,235,.025)" : "" }} />
-                                            ))}
-                                            {row.job && row.dur > 0 && (
-                                                <div style={{ position: "absolute", top: 6, height: 26, left: `calc(140px + ${row.start * colPct}%)`, width: `${row.dur * colPct}%`, background: row.status === "printing" ? "var(--green)" : "var(--accent)", borderRadius: "var(--r)", display: "flex", alignItems: "center", paddingLeft: 6, fontSize: 9, fontWeight: 600, color: "#fff", zIndex: 2, overflow: "hidden", whiteSpace: "nowrap" }}>
-                                                    {row.job}
-                                                </div>
-                                            )}
-                                            {row.status === "maintenance" && (
-                                                <div style={{ position: "absolute", top: 6, height: 26, left: "140px", right: 0, background: "repeating-linear-gradient(45deg,rgba(184,134,11,.08),rgba(184,134,11,.08) 4px,transparent 4px,transparent 10px)", borderRadius: "var(--r)", display: "flex", alignItems: "center", paddingLeft: 8, fontSize: 9, color: "var(--gold)", fontWeight: 600 }}>
-                                                    ⚙ Maintenance
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ padding: "8px 14px", borderTop: "1px solid var(--border)", display: "flex", gap: 16, flexWrap: "wrap" }}>
-                                {[["var(--green)", "Printing"], ["var(--accent)", "Scheduled"], ["var(--border2)", "Idle"], ["var(--yellow)", "Maintenance"]].map(([col, label]) => (
-                                    <div key={label} className="row" style={{ gap: 5 }}>
-                                        <div style={{ width: 10, height: 10, borderRadius: 2, background: col, flexShrink: 0 }} />
-                                        <span className="tiny">{label}</span>
-                                    </div>
-                                ))}
-                                {slotPrinter && <div className="row" style={{ gap: 5, marginLeft: "auto" }}><span className="tiny" style={{ color: "var(--accent)", fontWeight: 700 }}>✓ Selected: {slotPrinter}</span></div>}
-                            </div>
-                        </div>
+                        {/* ── Shared Schedule Gantt ── */}
+                        <ScheduleGantt
+                            jobs={allJobs}
+                            currentDate={ganttDate}
+                            onDateChange={setGanttDate}
+                            view={ganttView}
+                            onViewChange={setGanttView}
+                            techFilter={ganttFilter}
+                            onTechFilterChange={setGanttFilter}
+                            onJobClick={handleJobClick}
+                            showDurationLegend={true}
+                        />
 
-                        {/* ── Single job queue ── */}
+{/* ── Current Request Pending Allotment ── */}
                         <div className="card mb16">
                             <div className="ch">
                                 <div><span className="ct">Request Pending Allotment</span></div>
                             </div>
                             <div className="tw">
                                 <table>
-                                    <thead><tr><th>Project Name</th><th>Est. Time</th><th>Items</th><th>Priority</th><th>Technology</th><th>Deadline</th><th style={{ textAlign: "right" }}>Actions</th></tr></thead>
+                                    <thead><tr><th>#</th><th>Project / Group</th><th>Est. Time (w/5%)</th><th>Qty</th><th>Priority</th><th>Technology</th><th>Deadline</th><th>Assigned To</th><th style={{ textAlign: "right", minWidth: 120 }}>Actions</th></tr></thead>
                                     <tbody>
-                                        {thisJob.map(q => (
-                                            <tr key={q.id} style={{ background: "rgba(37,99,235,.03)" }}>
-                                                <td>
-                                                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                                                        {sel.imageUrl && (
-                                                            <img
-                                                                src={sel.imageUrl}
-                                                                alt=""
-                                                                style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0 }}
-                                                            />
-                                                        )}
-                                                        <div>
-                                                            <div style={{ fontWeight: 700, fontSize: 12 }}>{q.name}</div>
-                                                            <div className="tiny">{q.code}</div>
+                                        {sel.groups && sel.groups.length > 0 ? sel.groups.map((g, gi) => {
+                                            const groupAssignment = printerAssignments[`${sel.id}-grp${gi}`];
+                                            const groupEstHrs = g.estHrs || sel.estHrs || 4;
+                                            const groupEstMin = g.estMin || sel.estMin || 0;
+                                            const rawMin = (groupEstHrs * 60 + groupEstMin) * 1.05;
+                                            const timeWithBuffer = `${Math.floor(rawMin / 60)}h ${Math.round(rawMin % 60)}m`;
+                                            return (
+                                                <tr key={`${sel.id}-grp${gi}`} style={{ background: groupAssignment ? "rgba(15,155,106,.05)" : "rgba(37,99,235,.03)" }}>
+                                                    <td style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)" }}>G{gi + 1}</td>
+                                                    <td>
+                                                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                                            {sel.imageUrl && (
+                                                                <img src={sel.imageUrl} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0 }} />
+                                                            )}
+                                                            <div>
+                                                                {gi === 0 && <div style={{ fontWeight: 700, fontSize: 12 }}>{sel.name}</div>}
+                                                                {gi > 0 && <div style={{ fontWeight: 600, fontSize: 11, color: "var(--text2)" }}>{sel.name}</div>}
+                                                                <div className="tiny">{sel.id} · Grp {gi + 1}</div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="mono">{q.estTime}</td>
-                                                <td className="mono">{q.items}</td>
-                                                <td><span className={`b ${priorityBadge[q.priority] || "bnorm"}`} style={{ fontSize: 9 }}>{q.priority.charAt(0).toUpperCase() + q.priority.slice(1)}</span></td>
-                                                <td><TB tech={q.tech} /></td>
-                                                <td className="mono">{q.deadline}</td>
-                                                <td style={{ textAlign: "right" }}>
-                                                    <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
-                                                        <button className="btn btp bts" style={{ fontSize: 10 }} onClick={() => setJaShowAutoConfirm(q)}>⚡ Auto</button>
-                                                        <button className="btn btg bts" style={{ fontSize: 10 }} onClick={() => setJaShowManual(q)}>✎ Manual</button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
+                                                    </td>
+                                                    <td className="mono" style={{ fontSize: 12 }}>{timeWithBuffer}</td>
+                                                    <td className="mono" style={{ fontSize: 12 }}>{g.qty || 0}</td>
+                                                    <td><span className={`b ${priorityBadge[sel.priority] || "bnorm"}`} style={{ fontSize: 10 }}>{(sel.priority || "normal").charAt(0).toUpperCase() + (sel.priority || "normal").slice(1)}</span></td>
+                                                    <td><TB tech={sel.tech} /></td>
+                                                    <td className="mono" style={{ fontSize: 11 }}>{sel.due || "—"}</td>
+                                                    <td>
+                                                        {groupAssignment ? (
+                                                            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--green)" }}>✓ {groupAssignment.printer}</span>
+                                                        ) : (
+                                                            <span className="tiny" style={{ color: "var(--text3)" }}>Unassigned</span>
+                                                        )}
+                                                    </td>
+                                                    <td style={{ textAlign: "right" }}>
+                                                        {groupAssignment ? (
+                                                            <button className="btn btg bts" style={{ fontSize: 10, padding: "6px 12px" }} onClick={() => {
+                                                                const next = { ...printerAssignments };
+                                                                delete next[`${sel.id}-grp${gi}`];
+                                                                onPrinterAssignmentsChange(next);
+                                                            }}>✕ Unassign</button>
+                                                        ) : (
+                                                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                                                <button className="btn btp" style={{ fontSize: 11, padding: "6px 14px", fontWeight: 600 }} onClick={() => setJaShowAutoConfirm({ ...sel, groupIndex: gi })}>⚡ Auto</button>
+                                                                <button className="btn btg" style={{ fontSize: 11, padding: "6px 14px" }} onClick={() => setJaShowManual({ ...sel, groupIndex: gi })}>✎ Manual</button>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }) : (() => {
+                                            const fallbackAssignment = printerAssignments[sel.id];
+                                            const groupEstHrs = sel.estHrs || 4;
+                                            const groupEstMin = sel.estMin || 0;
+                                            const rawMin = (groupEstHrs * 60 + groupEstMin) * 1.05;
+                                            const timeWithBuffer = `${Math.floor(rawMin / 60)}h ${Math.round(rawMin % 60)}m`;
+                                            return (
+                                                <tr key={sel.id} style={{ background: fallbackAssignment ? "rgba(15,155,106,.05)" : "rgba(37,99,235,.03)" }}>
+                                                    <td style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)" }}>G1</td>
+                                                    <td>
+                                                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                                            {sel.imageUrl && (
+                                                                <img src={sel.imageUrl} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0 }} />
+                                                            )}
+                                                            <div>
+                                                                <div style={{ fontWeight: 700, fontSize: 12 }}>{sel.name}</div>
+                                                                <div className="tiny">{sel.id} · Grp 1</div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="mono" style={{ fontSize: 12 }}>{timeWithBuffer}</td>
+                                                    <td className="mono" style={{ fontSize: 12 }}>{sel.qty || 0}</td>
+                                                    <td><span className={`b ${priorityBadge[sel.priority] || "bnorm"}`} style={{ fontSize: 10 }}>{(sel.priority || "normal").charAt(0).toUpperCase() + (sel.priority || "normal").slice(1)}</span></td>
+                                                    <td><TB tech={sel.tech} /></td>
+                                                    <td className="mono" style={{ fontSize: 11 }}>{sel.due || "—"}</td>
+                                                    <td>
+                                                        {fallbackAssignment ? (
+                                                            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--green)" }}>✓ {fallbackAssignment.printer}</span>
+                                                        ) : (
+                                                            <span className="tiny" style={{ color: "var(--text3)" }}>Unassigned</span>
+                                                        )}
+                                                    </td>
+                                                    <td style={{ textAlign: "right" }}>
+                                                        {fallbackAssignment ? (
+                                                            <button className="btn btg bts" style={{ fontSize: 10, padding: "6px 12px" }} onClick={() => unassignPrinter(sel.id)}>✕ Unassign</button>
+                                                        ) : (
+                                                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                                                <button className="btn btp" style={{ fontSize: 11, padding: "6px 14px", fontWeight: 600 }} onClick={() => setJaShowAutoConfirm(sel)}>⚡ Auto</button>
+                                                                <button className="btn btg" style={{ fontSize: 11, padding: "6px 14px" }} onClick={() => setJaShowManual(sel)}>✎ Manual</button>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })()}</tbody>
                                 </table>
                             </div>
                         </div>
 
-                        {/* ── Printer Grid ── */}
+{/* ── Printer Grid ── */}
                         <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>Printer Availability</div>
                         <div className="g g4 mb16">
-                            {SCHEDULE_JOBS.map(p => {
-                                const isSelected = slotPrinter === p.printer;
-                                const busy = p.status === "printing" || p.status === "maintenance";
-                                // Compute next available start time from schedule data
-                                // Hours are offset from 06:00. If busy, available after current job ends.
-                                const BASE_H = 6; // day starts at 06:00
+                            {SCHEDULE_JOBS
+                                .filter(p => {
+                                    if (p.status === "maintenance" || p.status === "offline") return false;
+                                    if (sel.tech && (p.tech || "").toUpperCase() !== sel.tech.toUpperCase()) return false;
+                                    return true;
+                                })
+                                .map(p => {
+                                const isSelectedForCurrent = slotPrinter === p.printer;
+                                const assignedProjectId = Object.entries(printerAssignments).find(([, a]) => a.printer === p.printer)?.[0];
+                                const busy = p.status === "printing" || p.status === "maintenance" || p.status === "offline";
+                                const now = new Date();
+                                const currentH = now.getHours();
+                                const currentMin = now.getMinutes();
                                 let nextH, nextMin;
-                                if (p.status === "maintenance") {
-                                    nextH = BASE_H + 8; nextMin = 0; // assume back at 14:00
+                                if (p.status === "maintenance" || p.status === "offline") {
+                                    nextH = 14; nextMin = 0;
                                 } else if (p.status === "printing" && p.start != null && p.dur > 0) {
-                                    const endH = BASE_H + p.start + p.dur;
-                                    nextH = endH; nextMin = 15; // 15 min setup after job ends
+                                    nextH = p.start + p.dur; nextMin = 15;
                                 } else if (p.status === "waiting") {
-                                    nextH = BASE_H + (p.start || 0) + 1; nextMin = 0;
+                                    nextH = 6 + (p.start || 0) + 1; nextMin = 0;
                                 } else {
-                                    // idle — next slot is now (current time approx 10:00)
-                                    nextH = 10; nextMin = 0;
+                                    nextH = currentH + 1; nextMin = currentMin;
                                 }
-                                // Clamp to same day 06:00–23:00
-                                if (nextH >= 24) { nextH = 8; nextMin = 0; } // spills to next day
+                                if (nextH >= 24) { nextH = 8; nextMin = 0; }
                                 const nextTime = `${String(nextH).padStart(2, "0")}:${String(nextMin).padStart(2, "0")}`;
-                                const isNextDay = p.start != null && p.dur > 0 && (BASE_H + p.start + p.dur) >= 24;
+                                const isNextDay = p.start != null && p.dur > 0 && (p.start + p.dur) >= 24;
+
+                                function handlePrinterClick() {
+                                    if (p.job) {
+                                        setJaShowPrintLog(p);
+                                    } else if (!busy) {
+                                        const startTime = `${isNextDay ? "Tomorrow " : "Today "}${nextTime}`;
+                                        assignPrinter(sel.id, p.printer, startTime);
+                                    }
+                                }
+
                                 return (
                                     <div key={p.id}
-                                        className={`mc ${p.status === "printing" ? "running" : p.status === "maintenance" ? "maintenance" : "idle"}`}
-                                        style={{ cursor: busy ? "default" : "pointer", outline: isSelected ? "2px solid var(--accent)" : "none", outlineOffset: 2 }}
-                                        onClick={() => { if (p.job) setJaShowPrintLog(p); else if (!busy) { setSlotPrinter(p.printer); setSlotStartTime(`${isNextDay ? "Tomorrow " : "Today "}${nextTime}`); } }}>
+                                        className={`mc ${p.status === "printing" ? "running" : p.status === "maintenance" || p.status === "offline" ? "maintenance" : "idle"}`}
+                                        style={{ cursor: busy ? "default" : "pointer", outline: isSelectedForCurrent ? "2px solid var(--accent)" : assignedProjectId && assignedProjectId !== sel.id ? "2px solid var(--green)" : "none", outlineOffset: 2 }}
+                                        onClick={handlePrinterClick}>
                                         <div className="rowsb mb6">
                                             <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700 }}>{p.printer}</div>
                                             <div style={{ display: "flex", gap: 4 }}>
@@ -484,14 +597,18 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
                                             ? <><div className="tiny mb4" style={{ color: "var(--text2)" }}>{p.job}</div><Prog pct={65} h={4} /></>
                                             : p.status === "maintenance"
                                                 ? <div className="tiny" style={{ color: "var(--yellow)" }}>Under maintenance</div>
-                                                : null}
-                                        {/* Next available time — shown on every card */}
+                                                : p.status === "offline"
+                                                    ? <div className="tiny" style={{ color: "var(--red)" }}>Offline</div>
+                                                    : null}
                                         <div className="tiny mt6" style={{ color: busy ? "var(--text3)" : "var(--green)", fontFamily: "var(--fm)", fontWeight: busy ? 400 : 600 }}>
                                             {busy
                                                 ? `Available: ${isNextDay ? "Tomorrow " : ""}${nextTime}`
                                                 : `✓ Start now · ${nextTime}`}
                                         </div>
-                                        {isSelected && <div className="tiny mt4" style={{ color: "var(--accent)", fontWeight: 700 }}>✓ Selected</div>}
+                                        {isSelectedForCurrent && <div className="tiny mt4" style={{ color: "var(--accent)", fontWeight: 700 }}>✓ Selected for current</div>}
+                                        {assignedProjectId && assignedProjectId !== sel.id && (
+                                            <div className="tiny mt4" style={{ color: "var(--green)", fontWeight: 600 }}>✓ Assigned to another</div>
+                                        )}
                                         {p.job && <div className="tiny mt4" style={{ color: "var(--text3)" }}>▷ View print log</div>}
                                     </div>
                                 );
@@ -504,23 +621,32 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
                                 {slotStartTime ? ` · Starts ${slotStartTime}` : ""}
                                 {sel.estHrs || sel.estMin ? ` · Est. ${sel.estHrs || 0}h ${sel.estMin || 0}m` : ""}
                             </div>
-                            : <div className="astrip warn" style={{ marginBottom: 0 }}>Click an available printer above to confirm the slot for this job.</div>}
+                            : <div className="astrip warn" style={{ marginBottom: 0 }}>Click an available printer above to allot this request.</div>}
 
                         {/* ── Auto Confirm Modal ── */}
                         {jaShowAutoConfirm && (() => {
-                            // Find earliest available printer matching the job's tech
-                            const BASE_H = 6;
-                            const sameTech = SCHEDULE_JOBS.filter(p => p.tech === sel.tech);
-                            const withTime = (sameTech.length > 0 ? sameTech : SCHEDULE_JOBS).map(p => {
+                            // avail = absolute end-of-job hour (e.g. job ends at 14:00 → avail=14.25 for 15min buffer)
+                            // idle printers → available at current time + 1hr setup buffer
+                            const now = new Date();
+                            const currentHour = now.getHours() + now.getMinutes() / 60;
+                            const sameTech = SCHEDULE_JOBS.filter(p => (p.tech || "").toUpperCase() === (jaShowAutoConfirm.tech || sel?.tech || "").toUpperCase());
+                            const candidates = (sameTech.length > 0 ? sameTech : SCHEDULE_JOBS).filter(p => p.status !== "maintenance" && p.status !== "offline");
+                            const withTime = candidates.map(p => {
                                 let avail;
-                                if (p.status === "maintenance") avail = BASE_H + 8;
-                                else if (p.status === "printing" && p.start != null && p.dur > 0) avail = BASE_H + p.start + p.dur + 0.25;
-                                else if (p.status === "waiting") avail = BASE_H + (p.start || 0) + 1;
-                                else avail = 10; // idle now
+                                if (p.status === "printing" && p.start != null && p.dur > 0) {
+                                    // job end time (absolute hour) + 15min buffer
+                                    avail = p.start + p.dur + 0.25;
+                                } else if (p.status === "waiting") {
+                                    // job start + 1hr setup buffer (relative to schedule day start 06:00)
+                                    avail = 6 + (p.start || 0) + 1;
+                                } else {
+                                    // idle → available at current time + 1hr setup buffer
+                                    avail = currentHour + 1;
+                                }
                                 return { ...p, availH: avail };
                             });
                             const best = withTime.sort((a, b) => a.availH - b.availH)[0];
-                            const eh = Math.floor(best.availH) % 24;
+                            const eh = Math.floor(best.availH);
                             const em = Math.round((best.availH % 1) * 60);
                             const isNextDay = best.availH >= 24;
                             const timeStr = `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
@@ -529,13 +655,14 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
                                 <Modal title="Confirm Auto-Assignment" onClose={() => setJaShowAutoConfirm(null)} footer={(
                                     <><button className="btn btg bts" onClick={() => setJaShowAutoConfirm(null)}>✕ Cancel</button>
                                         <button className="btn btp bts" onClick={() => {
-                                            setSlotPrinter(best.printer);
-                                            setSlotStartTime(labelStr);
+                                            assignPrinter(jaShowAutoConfirm.id, best.printer, labelStr, jaShowAutoConfirm.groupIndex ?? null);
                                             setJaShowAutoConfirm(null);
-                                            toast(`Auto-assigned to ${best.printer} · Starts ${labelStr}`, "s");
                                         }}>✓ Confirm &amp; Assign</button></>
                                 )}>
-                                    <div className="astrip info mb12">Earliest available {sel.tech} printer found. Review and confirm.</div>
+                                    <div className="astrip info mb12">
+                                        {jaShowAutoConfirm.groupIndex !== undefined ? `Grp ${jaShowAutoConfirm.groupIndex + 1} — ` : ""}
+                                        Earliest available {jaShowAutoConfirm.tech || sel?.tech} printer found. Review and confirm.
+                                    </div>
                                     <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: 14 }}>
                                         <div className="tiny mb8" style={{ color: "var(--text3)", fontFamily: "var(--fm)", letterSpacing: "1px" }}>ASSIGNMENT DETAILS</div>
                                         <div className="rowsb mb8">
@@ -565,16 +692,21 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
 
                         {/* ── Manual Assign Modal ── */}
                         {jaShowManual && (() => {
-                            const BASE_H = 6;
-                            // Show ALL printers except maintenance — idle AND printing, sorted by earliest available
+                            const now = new Date();
+                            const currentHour = now.getHours() + now.getMinutes() / 60;
+                            const targetTech = (jaShowManual.tech || sel?.tech || "").toUpperCase();
                             const selectable = SCHEDULE_JOBS
-                                .filter(p => p.status !== "maintenance")
+                                .filter(p => {
+                                    if (p.status === "maintenance" || p.status === "offline") return false;
+                                    if (targetTech && (p.tech || "").toUpperCase() !== targetTech) return false;
+                                    return true;
+                                })
                                 .map(p => {
                                     let avail;
-                                    if (p.status === "printing" && p.start != null && p.dur > 0) avail = BASE_H + p.start + p.dur + 0.25;
-                                    else if (p.status === "waiting") avail = BASE_H + (p.start || 0) + 1;
-                                    else avail = 10;
-                                    const eh = Math.floor(avail) % 24;
+                                    if (p.status === "printing" && p.start != null && p.dur > 0) avail = p.start + p.dur + 0.25;
+                                    else if (p.status === "waiting") avail = 6 + (p.start || 0) + 1;
+                                    else avail = currentHour + 1;
+                                    const eh = Math.floor(avail);
                                     const em = Math.round((avail % 1) * 60);
                                     const isNextDay = avail >= 24;
                                     const timeStr = `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
@@ -582,25 +714,52 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
                                 })
                                 .sort((a, b) => a.availH - b.availH);
                             return (
-                                <Modal title="Manual Project Assignment" onClose={() => setJaShowManual(null)} footer={(
-                                    <><button className="btn btg bts" onClick={() => setJaShowManual(null)}>Cancel</button>
+                                <Modal title={jaShowManual.groupIndex !== undefined ? `Manual Assignment — Group ${jaShowManual.groupIndex + 1}` : "Manual Project Assignment"} onClose={() => { setJaShowManual(null); setJaCustomDate(""); setJaCustomTime(""); }} footer={(
+                                    <><button className="btn btg bts" onClick={() => { setJaShowManual(null); setJaCustomDate(""); setJaCustomTime(""); }}>Cancel</button>
                                         <button className="btn btp bts"
                                             disabled={!slotPrinter}
                                             onClick={() => {
                                                 const chosen = selectable.find(p => p.printer === slotPrinter);
-                                                if (chosen) setSlotStartTime(chosen.nextSlot);
+                                                if (chosen) {
+                                                    const finalTime = jaCustomDate && jaCustomTime ? `${jaCustomDate} ${jaCustomTime}` : chosen.nextSlot;
+                                                    assignPrinter(jaShowManual.id, slotPrinter, finalTime, jaShowManual.groupIndex ?? null);
+                                                }
                                                 setJaShowManual(null);
-                                                toast(`Assigned to ${slotPrinter}`, "s");
+                                                setJaCustomDate("");
+                                                setJaCustomTime("");
                                             }}>✓ Assign to Selected Printer</button></>
                                 )}>
                                     <div className="tiny mb12" style={{ color: "var(--text2)" }}>
-                                        Select any printer — idle or printing. Sorted by earliest available slot. The job will queue after the current print finishes.
+                                        Showing only <strong style={{ color: "var(--accent)" }}>{targetTech || "all"}</strong> printers — idle, printing, or waiting. Sorted by earliest available slot.
                                     </div>
-                                    {selectable.map(p => {
+                                    <div style={{ marginBottom: 16, padding: "12px 14px", background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)" }}>
+                                        <div className="tiny mb8" style={{ color: "var(--text3)", fontFamily: "var(--fm)", letterSpacing: "1px" }}>CUSTOM START TIME (OPTIONAL)</div>
+                                        <div className="row" style={{ gap: 10 }}>
+                                            <div style={{ flex: 1 }}>
+                                                <label className="tiny" style={{ display: "block", marginBottom: 4 }}>Date</label>
+                                                <input type="date" className="fi" value={jaCustomDate} onChange={e => setJaCustomDate(e.target.value)} style={{ width: "100%" }} />
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                <label className="tiny" style={{ display: "block", marginBottom: 4 }}>Time</label>
+                                                <input type="time" className="fi" value={jaCustomTime} onChange={e => setJaCustomTime(e.target.value)} style={{ width: "100%" }} />
+                                            </div>
+                                        </div>
+                                        {(jaCustomDate || jaCustomTime) && (
+                                            <div className="tiny mt6" style={{ color: "var(--accent)" }}>
+                                                Custom start: {jaCustomDate && jaCustomTime ? `${jaCustomDate} ${jaCustomTime}` : jaCustomDate ? `${jaCustomDate} — select time` : "— select date"}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {selectable.length === 0 ? (
+                                        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text3)" }}>
+                                            No available printers for <strong>{targetTech}</strong> at this time.
+                                        </div>
+                                    ) : selectable.map(p => {
                                         const isChosen = slotPrinter === p.printer;
                                         const queueLen = p.status === "printing" ? 3 : p.status === "waiting" ? 1 : 0;
+                                        const isCustom = isChosen && jaCustomDate && jaCustomTime;
                                         return (
-                                            <div key={p.id} onClick={() => { setSlotPrinter(p.printer); setSlotStartTime(p.nextSlot); }}
+                                            <div key={p.id} onClick={() => { setSlotPrinter(p.printer); setSlotStartTime(isCustom ? `${jaCustomDate} ${jaCustomTime}` : p.nextSlot); }}
                                                 style={{ background: isChosen ? "var(--adim)" : "var(--bg3)", border: `1.5px solid ${isChosen ? "var(--accent)" : "var(--border)"}`, borderRadius: "var(--r2)", padding: "12px 14px", cursor: "pointer", transition: "all .12s", marginBottom: 8 }}>
                                                 <div className="rowsb mb4">
                                                     <div className="row" style={{ gap: 8 }}>
@@ -617,11 +776,17 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
                                                     <div className="tiny">
                                                         {p.status === "printing"
                                                             ? <>{p.job} · {queueLen} job{queueLen !== 1 ? "s" : ""} in queue</>
-                                                            : "No active job"}
+                                                            : p.status === "waiting" ? "Waiting in queue" : "No active job"}
                                                     </div>
-                                                    <div style={{ fontFamily: "var(--fm)", fontSize: 11, fontWeight: 700, color: p.status === "idle" ? "var(--green)" : "var(--text2)" }}>
-                                                        {p.nextSlot}
-                                                    </div>
+                                                    {isCustom ? (
+                                                        <div style={{ fontFamily: "var(--fm)", fontSize: 11, fontWeight: 700, color: "var(--accent)" }}>
+                                                            {jaCustomDate} {jaCustomTime}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ fontFamily: "var(--fm)", fontSize: 11, fontWeight: 700, color: p.status === "idle" ? "var(--green)" : "var(--text2)" }}>
+                                                            {p.nextSlot}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -631,19 +796,87 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
                         })()}
 
                         {/* ── Print Log Modal ── */}
-                        {jaShowPrintLog && (
-                            <Modal title={`Print Log — ${jaShowPrintLog.printer}`} onClose={() => setJaShowPrintLog(null)}>
-                                <div className="tiny mb12">Upcoming jobs scheduled for this printer.</div>
-                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                                    <thead><tr><th>Project</th><th>Start Time</th><th>Duration</th></tr></thead>
-                                    <tbody>
-                                        {PRINT_LOG.map((j, i) => (
-                                            <tr key={i}><td><div style={{ fontSize: 12, fontWeight: 500 }}>{j.job}</div><div className="tiny">{j.code}</div></td><td className="mono">{j.start}</td><td className="mono">{j.dur}</td></tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </Modal>
-                        )}
+                        {jaShowPrintLog && (() => {
+                            const printerName = jaShowPrintLog.printer;
+                            // Get scheduled jobs for this printer
+                            const scheduledJobs = SCHEDULE_JOBS.filter(j => j.printer === printerName && j.job);
+                            // Get allotted jobs for this printer
+                            const allottedForPrinter = Object.entries(printerAssignments)
+                                .filter(([, a]) => a.printer === printerName)
+                                .map(([projectId, assignment]) => {
+                                    const project = lcProjects.find(p => p.id === projectId) || assignment.projectData;
+                                    const durHrs = ((project?.estHrs ?? 4) + (project?.estMin ?? 0) / 60) * 1.05;
+                                    return {
+                                        job: project?.name || projectId,
+                                        projectNo: projectId,
+                                        start: assignment.startTime || "Today 10:00",
+                                        dur: `${Math.ceil(durHrs)}h`,
+                                        imageUrl: project?.imageUrl || "",
+                                        tech: project?.tech || "FDM",
+                                        material: project?.material || "",
+                                        isAllotted: true,
+                                    };
+                                });
+                            const allPrinterJobs = [...scheduledJobs.map(j => ({ ...j, isAllotted: false })), ...allottedForPrinter];
+                            return (
+                                <Modal title={`Print Log — ${printerName}`} onClose={() => setJaShowPrintLog(null)}>
+                                    {allPrinterJobs.length === 0 ? (
+                                        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text3)" }}>No jobs scheduled for this printer.</div>
+                                    ) : (
+                                        <>
+                                            {jaShowPrintLog.imageUrl && (
+                                                <div style={{ marginBottom: 14, aspectRatio: "16 / 9", maxHeight: 200, overflow: "hidden", borderRadius: "var(--r2)", border: "1px solid var(--border)", background: "#f0f0f0" }}>
+                                                    <img src={jaShowPrintLog.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                                </div>
+                                            )}
+                                            <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: 14, marginBottom: 14 }}>
+                                                <div className="tiny mb6" style={{ color: "var(--text3)", fontFamily: "var(--fm)", letterSpacing: "1px" }}>SELECTED JOB DETAILS</div>
+                                                <div className="rowsb mb4">
+                                                    <span className="tiny">Project</span>
+                                                    <span style={{ fontSize: 12, fontWeight: 600 }}>{jaShowPrintLog.job}</span>
+                                                </div>
+                                                <div className="rowsb mb4">
+                                                    <span className="tiny">Project No.</span>
+                                                    <span style={{ fontSize: 12 }}>{jaShowPrintLog.projectNo}</span>
+                                                </div>
+                                                <div className="rowsb">
+                                                    <span className="tiny">Technology</span>
+                                                    <span style={{ fontSize: 12 }}>{jaShowPrintLog.tech}</span>
+                                                </div>
+                                            </div>
+                                            <div className="tiny mb8" style={{ color: "var(--text2)" }}>All jobs for this printer:</div>
+                                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                                <thead><tr><th>Project</th><th>Start Time</th><th>Duration</th><th>Status</th></tr></thead>
+                                                <tbody>
+                                                    {allPrinterJobs.map((j, i) => (
+                                                        <tr key={i}>
+                                                            <td>
+                                                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                                    {j.imageUrl && <img src={j.imageUrl} alt="" style={{ width: 32, height: 32, borderRadius: 4, objectFit: "cover" }} />}
+                                                                    <div>
+                                                                        <div style={{ fontSize: 12, fontWeight: 500 }}>{j.job}</div>
+                                                                        <div className="tiny">{j.projectNo}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="mono">{j.start}</td>
+                                                            <td className="mono">{j.dur}</td>
+                                                            <td>
+                                                                {j.isAllotted ? (
+                                                                    <span style={{ fontSize: 9, background: "var(--adim)", color: "var(--accent)", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>SCHEDULED</span>
+                                                                ) : (
+                                                                    <span style={{ fontSize: 9, background: "rgba(15,155,106,.1)", color: "var(--green)", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>ACTIVE</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </>
+                                    )}
+                                </Modal>
+                            );
+                        })()}
                     </div>
                 );
             })()}
@@ -902,10 +1135,27 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast }) {
 
             {/* ── TAB: SPARES ── */}
             {reviewTab === "spares" && (
-                <ReviewSection num="3" title="Spare Parts & Consumables" status={spareRequired.length > 0 ? "ok" : null}>
-                    <div style={{ background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", padding: 12, marginBottom: 16 }}>
-                        <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>
-                            Spare Parts Required for This Job
+                <ReviewSection num="3" title="Spare Parts & Consumables" status={spareListConfirmed ? "ok" : spareRequired.length > 0 ? "ok" : null}>
+                    <div style={{ background: spareListConfirmed ? "rgba(15,155,106,.04)" : "var(--bg3)", border: `1px solid ${spareListConfirmed ? "rgba(15,155,106,.3)" : "var(--border2)"}`, borderRadius: "var(--r2)", padding: 12, marginBottom: 16 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                            <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)" }}>
+                                Spare Parts Required for This Job
+                            </div>
+                            <button
+                                className={`btn ${spareListConfirmed ? "btp" : spareRequired.length > 0 ? "btp" : "btg"} bts`}
+                                style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}
+                                onClick={() => {
+                                    if (spareRequired.length === 0) {
+                                        toast("Please add at least one spare part before confirming", "w");
+                                        return;
+                                    }
+                                    setSpareListConfirmed(true);
+                                    toast("Spares list confirmed for this job", "s");
+                                }}
+                            >
+                                <span style={{ fontSize: 14 }}>{spareListConfirmed ? "✓" : "○"}</span>
+                                {spareListConfirmed ? "Confirmed" : "Confirm List"}
+                            </button>
                         </div>
                         <div className="tiny mb10" style={{ color: "var(--text2)" }}>Add parts needed with quantity. Inventory availability shown automatically.</div>
                         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
