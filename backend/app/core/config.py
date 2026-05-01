@@ -33,8 +33,19 @@ class Settings:
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
-    CORS_ORIGINS: List[str] = _parse_cors_origins()
-    CORS_ORIGIN_REGEX: str = os.getenv("CORS_ORIGIN_REGEX", r"https://.*\.vercel\.app")
+    CORS_ORIGINS: List[str] = [
+        "https://www.pryysm.app",
+        "https://pryysm-v0.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://localhost:8080",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8080",
+    ]
+    CORS_ORIGIN_REGEX: str = r"https://.*\.(vercel\.app|pryysm\.app)"
 
 
 settings = Settings()
