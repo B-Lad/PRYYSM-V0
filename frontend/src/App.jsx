@@ -54,6 +54,9 @@ export default function App() {
     useRealtimeNotifications();
 
     useEffect(() => {
+        // Ping backend to wake up Render free tier before real requests
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}`.replace('/api/v1', '/health'), { mode: 'no-cors' })
+            .catch(() => {});
         bootstrap();
     }, []);
 

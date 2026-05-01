@@ -1,8 +1,12 @@
 // Base API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
+async function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Helper for API requests
-async function fetchApi(endpoint, options = {}) {
+async function fetchApi(endpoint, options = {}, retries = 2) {
     const url = `${API_URL}${endpoint}`;
     const config = {
         headers: { 'Content-Type': 'application/json', ...options.headers },
@@ -13,17 +17,25 @@ async function fetchApi(endpoint, options = {}) {
     const token = localStorage.getItem('access_token');
     if (token) config.headers['Authorization'] = `Bearer ${token}`;
 
-    let response;
-    try {
-        response = await fetch(url, config);
-    } catch (err) {
-        throw new Error(`Network error reaching API at ${API_URL}. Check Vercel env, Render URL, and backend CORS.`);
+    let lastError;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const response = await fetch(url, config);
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                throw new Error(errorBody.detail || `API Error: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        } catch (err) {
+            lastError = err;
+            // Only retry on network errors (not 4xx/5xx HTTP errors)
+            if (err.message.startsWith('API Error:')) throw err;
+            if (attempt < retries) {
+                await sleep(2000); // Wait 2s before retry (Render cold start)
+            }
+        }
     }
-    if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.detail || `API Error: ${response.status} ${response.statusText}`);
-    }
-    return response.json();
+    throw new Error(`Network error reaching API at ${API_URL}. The backend may be waking up (Render free tier) or CORS is misconfigured.`);
 }
 
 export const api = {
