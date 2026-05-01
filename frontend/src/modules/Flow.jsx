@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ROUTES_DATA } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { TB, SB, DB, Tabs, Prog, Modal } from '../components/atoms.jsx';
 import { TECH_C } from '../data/constants.js';
 
@@ -15,6 +16,8 @@ const KANBAN_STAGES = [
 
 
 export function Flow({ lcProjects = [] }) {
+    const isDemo = useDemoMode();
+    const seedRoutes = isDemo ? ROUTES_DATA : [];
     const [tab, setTab] = useState("kanban");
     const [selId, setSelId] = useState(null);
 
@@ -65,7 +68,7 @@ export function Flow({ lcProjects = [] }) {
 
             {tab === "routing" && (
                 <div className="g g3">
-                    {ROUTES_DATA.map(r => {
+                    {seedRoutes.map(r => {
                         const c = TECH_C[r.tech];
                         return (
                             <div key={r.tech} className="card" style={{ borderTopColor: c, borderTopWidth: 2 }}>

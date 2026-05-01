@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { LC_SEED, LIFECYCLE_STAGES, MATS_BY_TECH, MACHINES_BASE, lcPct, lcIdx } from '../data/seed.jsx';
+import { LIFECYCLE_STAGES, lcPct, lcIdx } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { TB, SB, DB, Modal, Tabs, Prog, AStrip, LiveBadge } from '../components/atoms.jsx';
 import { DEPT_CLS, DEPT_C } from '../data/constants.js';
 import { MAT_CATALOG, BLANK_MAT, BLANK_GROUP } from '../data/matCatalog.js';

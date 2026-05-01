@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
-    SCHEDULE_JOBS, ALLOT_QUEUE,
-    RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS,
-    SPARE_CATEGORIES, SPARE_SEED
+    seedScheduleJobs, ALLOT_QUEUE,
+    seedRawFilaments, seedRawResins, seedRawPowders,
+    SPARE_CATEGORIES, seedSpareSeed
 } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { MAT_CATALOG } from '../data/matCatalog.js';
 import { TB, SB, DB, Modal, Prog, AStrip, Tabs } from '../components/atoms.jsx';
 import { RMI_STATUS_BADGE, RMI_STATUS_LBL } from './RawMaterialInventory.jsx';
@@ -75,6 +76,12 @@ function Phase({ title, subtitle, tabs, activeTab, onChangeTab, children, status
 }
 
 export function AMReview2({ lcProjects, onLcProjectsChange, toast }) {
+    const isDemo = useDemoMode();
+    const seedScheduleJobs = isDemo ? seedScheduleJobs : [];
+    const seedRawFilaments = isDemo ? seedRawFilaments : [];
+    const seedRawResins = isDemo ? seedRawResins : [];
+    const seedRawPowders = isDemo ? seedRawPowders : [];
+    const seedSpareSeed = isDemo ? seedSpareSeed : [];
     const pending = lcProjects.filter(p => ["submitted", "review"].includes(p.stage));
     const reviewed = lcProjects.filter(p => !["submitted", "review"].includes(p.stage));
 
@@ -210,7 +217,7 @@ export function AMReview2({ lcProjects, onLcProjectsChange, toast }) {
 
     function renderSlots() {
         const priorityBadge = { low: "bnorm", medium: "bwait", high: "burgent" };
-        const printersByTech = SCHEDULE_JOBS.filter(j => j.tech === sel.tech);
+        const printersByTech = seedScheduleJobs.filter(j => j.tech === sel.tech);
         return (
             <div>
                 <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Assign to Printer</div>
@@ -238,7 +245,7 @@ export function AMReview2({ lcProjects, onLcProjectsChange, toast }) {
     }
 
     function renderWorkOrder() {
-        const printersByTech = SCHEDULE_JOBS.filter(j => j.tech === sel.tech);
+        const printersByTech = seedScheduleJobs.filter(j => j.tech === sel.tech);
         return (
             <div>
                 <div style={{ fontFamily: "var(--fd)", fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Work Order Details</div>
@@ -286,7 +293,7 @@ export function AMReview2({ lcProjects, onLcProjectsChange, toast }) {
     };
 
     function renderMaterials() {
-        const allInv = sel.tech === "FDM" ? RAW_FILAMENTS : sel.tech === "SLA" ? RAW_RESINS : RAW_POWDERS;
+        const allInv = sel.tech === "FDM" ? seedRawFilaments : sel.tech === "SLA" ? seedRawResins : seedRawPowders;
         const projectMats = [{ key: "0", name: sel.material || "—", type: sel.material, grams: null, grpQty: sel.qty, grpLabel: "All items", custom: false }];
         return (
             <div>
@@ -323,7 +330,7 @@ export function AMReview2({ lcProjects, onLcProjectsChange, toast }) {
                             <label className="fl" style={{ fontSize: 10 }}>Select Part</label>
                             <select className="fsel" style={{ fontSize: 11 }} value={sparePartSelect} onChange={e => setSparePartSelect(e.target.value)}>
                                 <option value="">Choose…</option>
-                                {SPARE_SEED.map(s => (<option key={s.id} value={s.id}>{s.name} ({s.location})</option>))}
+                                {seedSpareSeed.map(s => (<option key={s.id} value={s.id}>{s.name} ({s.location})</option>))}
                             </select>
                         </div>
                         <div style={{ width: 100 }}>
@@ -333,7 +340,7 @@ export function AMReview2({ lcProjects, onLcProjectsChange, toast }) {
                         <button className="btn btp bts" style={{ fontSize: 10, padding: "5px 12px" }} onClick={() => { if (sparePartSelect) { if (!spareRequired.find(p => p.partId === sparePartSelect)) { setSpareRequired(p => [...p, { partId: sparePartSelect, qty: sparePartQty }]); } setSparePartSelect(""); setSparePartQty(1); } }}>+ Add</button>
                     </div>
                     {spareRequired.map((sp, idx) => {
-                        const part = SPARE_SEED.find(s => s.id === sp.partId);
+                        const part = seedSpareSeed.find(s => s.id === sp.partId);
                         if (!part) return null;
                         const ok = part.qty >= sp.qty;
                         return (
