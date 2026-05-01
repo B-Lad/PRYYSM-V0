@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Tabs } from '../components/atoms.jsx';
 import { WOS, LC_SEED, PROJECTS } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 
-function getProjectForWO(wo) {
+function getProjectForWO(wo, seedWos, seedLcSeed, seedProjects) {
     if (!wo) return null;
-    const lc = LC_SEED.find(p => p.id === wo.project);
+    const lc = seedLcSeed.find(p => p.id === wo.project);
     if (lc) return lc;
-    const proj = PROJECTS.find(p => p.id === wo.project);
+    const proj = seedProjects.find(p => p.id === wo.project);
     if (proj) return { ...proj, imageUrl: null };
     return null;
 }
@@ -212,15 +213,19 @@ function TaskRow({ task, index, isDone, onToggle, comment, onCommentChange, comp
 }
 
 export function PostPosingQC() {
+    const isDemo = useDemoMode();
+    const seedWos = isDemo ? WOS : [];
+    const seedLcSeed = isDemo ? LC_SEED : [];
+    const seedProjects = isDemo ? PROJECTS : [];
     const [activeTab, setActiveTab] = useState("postposing");
     const [selectedWOId, setSelectedWOId] = useState("");
     
     // Filter WOs that are in postproc or qa stage
-    const postProcWOs = WOS.filter(w => w.status === "postproc" || w.status === "printing");
-    const qcWOs = WOS.filter(w => w.status === "qa" || w.status === "postproc");
+    const postProcWOs = seedWos.filter(w => w.status === "postproc" || w.status === "printing");
+    const qcWOs = seedWos.filter(w => w.status === "qa" || w.status === "postproc");
 
     // Get selected WO object from ID
-    const selectedWO = selectedWOId ? WOS.find(w => w.id === selectedWOId) : null;
+    const selectedWO = selectedWOId ? seedWos.find(w => w.id === selectedWOId) : null;
 
     // Post-posing state
     const [ppTasks, setPpTasks] = useState({}); // { woId: { taskId: { done: bool, comment: string, completedAt: string } } }
@@ -489,7 +494,7 @@ export function PostPosingQC() {
                                 ))}
                             </div>
                             {(() => {
-                                const proj = getProjectForWO(selectedWO);
+                                const proj = getProjectForWO(selectedWO, seedWos, seedLcSeed, seedProjects);
                                 return proj ? (
                                     <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
                                         <div className="tiny mb2" style={{ color: "var(--text3)" }}>Project</div>

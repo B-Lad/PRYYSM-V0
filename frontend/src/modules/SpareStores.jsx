@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Modal } from '../components/atoms.jsx';
 import { ImageUpload } from '../components/ImageUpload.jsx';
 import { ReorderModal } from '../components/ReorderModal.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 
 const SPARE_CATEGORIES = [
     { id: "packing", name: "Packing Material", icon: "📦", color: "var(--accent)" },
@@ -88,8 +89,9 @@ function SpareFormModal({ title, data, setData, onSave, onClose }) {
 }
 
 export function SpareStores({ printerAssignments = {} }) {
+    const isDemo = useDemoMode();
     const [tab, setTab] = useState("dashboard");
-    const [items, setItems] = useState(SPARE_SEED);
+    const [items, setItems] = useState(isDemo ? SPARE_SEED : []);
     const [catFilter, setCatFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
     const [search, setSearch] = useState("");

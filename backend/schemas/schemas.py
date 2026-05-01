@@ -194,6 +194,7 @@ class TenantCreate(BaseModel):
     admin_password: str
     max_users: int = 5
     max_machines: int = 2
+    demo_mode: bool = False
 
 
 class TenantOut(BaseModel):
@@ -203,6 +204,7 @@ class TenantOut(BaseModel):
     contact_email: Optional[str] = None
     max_users: int = 5
     max_machines: int = 2
+    demo_mode: bool = False
     created_at: Optional[datetime] = None
 
 
@@ -212,6 +214,7 @@ class TenantUpdate(BaseModel):
     contact_email: Optional[str] = None
     max_users: Optional[int] = None
     max_machines: Optional[int] = None
+    demo_mode: Optional[bool] = None
 
 
 class SessionOut(BaseModel):
@@ -226,6 +229,7 @@ class SessionOut(BaseModel):
     tenant_name: Optional[str] = None
     max_users: Optional[int] = None
     max_machines: Optional[int] = None
+    demo_mode: Optional[bool] = None
 
 
 class AccessOptionsOut(BaseModel):

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { SCHEDULE_JOBS, CONFIRM_QUEUE } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { TB, SB, Prog } from '../components/atoms.jsx';
 import { ScheduleGantt } from '../components/ScheduleGantt.jsx';
 import { Printer, AlertTriangle, CheckCircle, Clock, Settings, Download, X, MapPin, User, Layers, Wrench, FileBox, Image, AlertCircle } from 'lucide-react';
@@ -17,14 +18,17 @@ const FLEET_STATUS_MAP = {
 };
 
 export function PrintSchedule({ lcProjects = [], printerAssignments = {}, onPrinterAssignmentsChange }) {
+    const isDemo = useDemoMode();
+    const seedScheduleJobs = isDemo ? seedScheduleJobs : [];
+    const seedConfirmQueue = isDemo ? seedConfirmQueue : [];
     const [view, setView] = useState("day");
     const [selPrinter, setSelPrinter] = useState("PRUSA01");
     const [techFilter, setTechFilter] = useState("all");
-    const [queue, setQueue] = useState(CONFIRM_QUEUE);
+    const [queue, setQueue] = useState(seedConfirmQueue);
     const [currentDate, setCurrentDate] = useState(new Date("2026-04-23"));
     const [selectedJob, setSelectedJob] = useState(null);
 
-    const enrichedJobs = SCHEDULE_JOBS.map(j => ({
+    const enrichedJobs = seedScheduleJobs.map(j => ({
         ...j,
         status: FLEET_STATUS_MAP[j.printerCode]?.status || j.status,
         location: FLEET_STATUS_MAP[j.printerCode]?.location || "Unknown",
@@ -35,7 +39,7 @@ export function PrintSchedule({ lcProjects = [], printerAssignments = {}, onPrin
         // key might be `PRJ-XYZ` or `PRJ-XYZ-grp0`
         const projectId = key.split("-grp")[0];
         const project = lcProjects.find(p => p.id === projectId) || assignment.projectData;
-        const printerData = SCHEDULE_JOBS.find(p => p.printer === assignment.printer || p.printerCode === assignment.printer);
+        const printerData = seedScheduleJobs.find(p => p.printer === assignment.printer || p.printerCode === assignment.printer);
         
         let startHour = 10;
         let startDate = new Date("2026-04-23");

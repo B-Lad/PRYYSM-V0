@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { QC_DATA, DEPARTMENTS, WOS } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { TB, SB, Tabs, Ring, Spark, Prog, AStrip } from '../components/atoms.jsx';
 
 export function Performance({ machines }) {
+    const isDemo = useDemoMode();
+    const seedQcData = isDemo ? seedQcData : [];
+    const seedDepartments = isDemo ? seedDepartments : [];
+    const seedWos = isDemo ? seedWos : [];
     const [tab, setTab] = useState("oee");
     return (
         <div>
@@ -57,7 +62,7 @@ export function Performance({ machines }) {
                         {[{ l: "Pass Rate", v: "94.2%", c: "cg" }, { l: "Defect Rate", v: "5.8%", c: "cr" }, { l: "Rework WOs", v: "3", c: "cy" }, { l: "Open NCRs", v: "1", c: "cr" }].map(k => <div key={k.l} className={`kpi ${k.c}`}><div className="kl">{k.l}</div><div className="kv">{k.v}</div></div>)}
                     </div>
                     <div className="card mb16"><div className="ch"><span className="ct">QC Records</span></div><div className="tw"><table><thead><tr><th>QC ID</th><th>Work Order</th><th>Dept</th><th>Tech</th><th>Result</th><th>Defects</th><th>Note</th><th>Operator</th><th>Time</th></tr></thead><tbody>
-                        {QC_DATA.map(q => <tr key={q.id}><td><span className="tacc">{q.id}</span></td><td><span className="tm">{q.wo}</span></td><td><DB code={q.dept.slice(0, 3).toUpperCase()} /></td><td><TB tech={q.tech} /></td><td><SB s={q.result} /></td><td className="tm">{q.defects}</td><td className="tdim">{q.note}</td><td className="tdim">{q.op}</td><td><span className="tiny">{q.time}</span></td></tr>)}
+                        {seedQcData.map(q => <tr key={q.id}><td><span className="tacc">{q.id}</span></td><td><span className="tm">{q.wo}</span></td><td><DB code={q.dept.slice(0, 3).toUpperCase()} /></td><td><TB tech={q.tech} /></td><td><SB s={q.result} /></td><td className="tm">{q.defects}</td><td className="tdim">{q.note}</td><td className="tdim">{q.op}</td><td><span className="tiny">{q.time}</span></td></tr>)}
                     </tbody></table></div></div>
                     <div className="card"><div className="ch"><span className="ct">Non-Conformance — NCR-019</span><span className="b brwk">Open</span></div><div className="cb"><div className="g g2">
                         <div>{[["Work Order", "WO-2031"], ["Dept", "MFG / PRJ-012"], ["Defect", "Layer delamination — 3/40"], ["Root Cause", "Temp variance FDM Bay A"]].map(([k, v]) => <div key={k} className="rowsb" style={{ padding: "7px 0", borderBottom: "1px solid var(--border)" }}><span className="tiny">{k}</span><span style={{ fontSize: 12 }}>{v}</span></div>)}</div>
@@ -68,14 +73,14 @@ export function Performance({ machines }) {
             {tab === "cost" && (
                 <div className="g g2">
                     <div className="card"><div className="ch"><span className="ct">Internal Cost per Department (MTD)</span></div><div className="cb">
-                        {DEPARTMENTS.map(d => <div key={d.id} className="mb12"><div className="rowsb mb4"><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: d.color }} /><span style={{ fontSize: 12 }}>{d.name}</span></div><span className="mono" style={{ color: d.color }}>AED {d.spent.toLocaleString()}</span></div><Prog pct={d.spent / d.budget * 100} color="cyan" h={6} /></div>)}
+                        {seedDepartments.map(d => <div key={d.id} className="mb12"><div className="rowsb mb4"><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: d.color }} /><span style={{ fontSize: 12 }}>{d.name}</span></div><span className="mono" style={{ color: d.color }}>AED {d.spent.toLocaleString()}</span></div><Prog pct={d.spent / d.budget * 100} color="cyan" h={6} /></div>)}
                     </div></div>
                     <div className="card"><div className="ch"><span className="ct">Monthly AM Spend (AED)</span></div><div className="cb"><Spark data={[280000, 310000, 265000, 340000, 325000, 360000, 331700]} color="var(--accent)" h={80} /><div className="rowsb mt12"><span className="dim small">MTD Total Spend</span><span style={{ fontFamily: "var(--fd)", fontSize: 20, fontWeight: 800, color: "var(--accent)" }}>AED 331,700</span></div></div></div>
                     <div className="card"><div className="ch"><span className="ct">Cost per Part by Technology</span></div><div className="cb">
                         {[{ tech: "FDM", cpu: 38, jobs: 47, color: "var(--fdm)" }, { tech: "SLA", cpu: 112, jobs: 23, color: "var(--sla)" }, { tech: "SLS", cpu: 198, jobs: 18, color: "var(--sls)" }].map(t => <div key={t.tech} className="mb12"><div className="rowsb mb4"><TB tech={t.tech} /><div><span className="mono">AED {t.cpu}/part</span><span className="tiny" style={{ marginLeft: 8 }}>{t.jobs} jobs</span></div></div><Prog pct={t.cpu / 200 * 100} color="cyan" h={6} /></div>)}
                     </div></div>
                     <div className="card"><div className="ch"><span className="ct">Cost vs Budget by Dept</span></div><div className="cb">
-                        {DEPARTMENTS.map(d => <div key={d.id} className="mb8"><div className="rowsb mb4"><span style={{ fontSize: 12 }}>{d.name}</span><span className="tiny" style={{ color: d.spent / d.budget > 0.9 ? "var(--red)" : "var(--text3)" }}>{Math.round(d.spent / d.budget * 100)}%</span></div><Prog pct={d.spent / d.budget * 100} color={d.spent / d.budget > 0.9 ? "red" : d.spent / d.budget > 0.7 ? "yellow" : "green"} h={7} /></div>)}
+                        {seedDepartments.map(d => <div key={d.id} className="mb8"><div className="rowsb mb4"><span style={{ fontSize: 12 }}>{d.name}</span><span className="tiny" style={{ color: d.spent / d.budget > 0.9 ? "var(--red)" : "var(--text3)" }}>{Math.round(d.spent / d.budget * 100)}%</span></div><Prog pct={d.spent / d.budget * 100} color={d.spent / d.budget > 0.9 ? "red" : d.spent / d.budget > 0.7 ? "yellow" : "green"} h={7} /></div>)}
                     </div></div>
                 </div>
             )}

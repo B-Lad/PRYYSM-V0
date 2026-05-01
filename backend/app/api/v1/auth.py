@@ -75,6 +75,7 @@ def serialize_session(user: User, tenant: Optional[Tenant] = None):
         "tenant_name": resolved_tenant.name if resolved_tenant else None,
         "max_users": settings.get("max_users"),
         "max_machines": settings.get("max_machines"),
+        "demo_mode": settings.get("demo_mode"),
     }
 
 

@@ -57,6 +57,7 @@ def serialize_tenant(tenant: Tenant):
             "contact_email": settings.get("contact_email", ""),
             "max_users": settings.get("max_users", 5),
             "max_machines": settings.get("max_machines", 2),
+            "demo_mode": settings.get("demo_mode", False),
             "created_at": tenant.created_at.isoformat() if tenant.created_at else None,
         }
     except Exception as e:
@@ -68,6 +69,7 @@ def serialize_tenant(tenant: Tenant):
             "contact_email": "",
             "max_users": 5,
             "max_machines": 2,
+            "demo_mode": False,
             "created_at": None,
         }
 
@@ -128,6 +130,7 @@ def create_tenant(
                     "max_users": data.max_users,
                     "max_machines": data.max_machines,
                     "contact_email": data.contact_email or "",
+                    "demo_mode": data.demo_mode if data.demo_mode is not None else False,
                     "member_access": {},
                 }
             ),
@@ -248,6 +251,8 @@ def update_tenant(
         settings["max_users"] = data.max_users
     if data.max_machines is not None:
         settings["max_machines"] = data.max_machines
+    if data.demo_mode is not None:
+        settings["demo_mode"] = data.demo_mode
 
     tenant.settings = settings
     db.add(tenant)

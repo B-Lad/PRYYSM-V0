@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { Modal } from '../components/atoms.jsx';
 import { ReorderModal } from '../components/ReorderModal.jsx';
 
@@ -112,11 +113,12 @@ function MatTabContent({ items, type, typeLabel, search, setSearch, brandFilter,
 }
 
 export function RawMaterialInventory({ printerAssignments = {} }) {
+    const isDemo = useDemoMode();
     const [tab, setTab] = useState("dashboard");
     const [matTab, setMatTab] = useState("filaments");
-    const [filaments, setFilaments] = useState(RAW_FILAMENTS);
-    const [resins, setResins] = useState(RAW_RESINS);
-    const [powders, setPowders] = useState(RAW_POWDERS);
+    const [filaments, setFilaments] = useState(isDemo ? RAW_FILAMENTS : []);
+    const [resins, setResins] = useState(isDemo ? RAW_RESINS : []);
+    const [powders, setPowders] = useState(isDemo ? RAW_POWDERS : []);
     const [showAdd, setShowAdd] = useState(false);
     const [editItem, setEditItem] = useState(null); // {type,item}
     const [search, setSearch] = useState("");

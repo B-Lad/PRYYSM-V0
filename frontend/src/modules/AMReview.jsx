@@ -4,6 +4,7 @@ import {
     RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS,
     SPARE_CATEGORIES, SPARE_SEED
 } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { MAT_CATALOG } from '../data/matCatalog.js';
 import { TB, SB, DB, Modal, Prog, AStrip, Tabs } from '../components/atoms.jsx';
 import { ScheduleGantt } from '../components/ScheduleGantt.jsx';
@@ -51,6 +52,13 @@ function ReviewSection({ num, title, status, children }) {
 }
 
 export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignments, onPrinterAssignmentsChange }) {
+    const isDemo = useDemoMode();
+    const seedScheduleJobs = isDemo ? seedScheduleJobs : [];
+    const seedRawFilaments = isDemo ? seedRawFilaments : [];
+    const seedRawResins = isDemo ? seedRawResins : [];
+    const seedRawPowders = isDemo ? seedRawPowders : [];
+    const seedSpareSeed = isDemo ? seedSpareSeed : [];
+
     const pending = lcProjects.filter(p => ["submitted", "review"].includes(p.stage));
     const reviewed = lcProjects.filter(p => !["submitted", "review"].includes(p.stage));
 
@@ -195,8 +203,8 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
         wo: woMachine ? "ok" : null,
     };
 
-    /* printer options for the slot + WO tabs — pulled from SCHEDULE_JOBS */
-    const printersByTech = sel ? SCHEDULE_JOBS.filter(j => j.tech === sel.tech) : [];
+    /* printer options for the slot + WO tabs — pulled from seedScheduleJobs */
+    const printersByTech = sel ? seedScheduleJobs.filter(j => j.tech === sel.tech) : [];
 
     /* ── LIST VIEW ── */
     if (!sel) return (
@@ -329,7 +337,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
                     const groupIndex = isGroupAssignment ? parseInt(projectId.split("-grp")[1]) : null;
                     const project = lcProjects.find(p => p.id === baseProjectId) || assignment.projectData;
                     const groupData = isGroupAssignment && groupIndex !== null ? (project?.groups?.[groupIndex] || {}) : {};
-                    const printerData = SCHEDULE_JOBS.find(p => p.printer === assignment.printer || p.printerCode === assignment.printer);
+                    const printerData = seedScheduleJobs.find(p => p.printer === assignment.printer || p.printerCode === assignment.printer);
                     let startHour = 10;
                     let startDate = new Date("2026-04-23");
                     const todayTomorrowMatch = assignment.startTime?.match(/(Today|Tomorrow)\s+(\d{2}):(\d{2})/);
@@ -368,8 +376,8 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
                     };
                 });
 
-                // Merge SCHEDULE_JOBS with allotted jobs (allotted take priority for same printer at overlapping times)
-                const allJobs = [...SCHEDULE_JOBS, ...allottedJobs];
+                // Merge seedScheduleJobs with allotted jobs (allotted take priority for same printer at overlapping times)
+                const allJobs = [...seedScheduleJobs, ...allottedJobs];
 
                 // Current review project assignment
                 const currentAssignment = printerAssignments[sel.id];
@@ -545,7 +553,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
 {/* ── Printer Grid ── */}
                         <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>Printer Availability</div>
                         <div className="g g4 mb16">
-                            {SCHEDULE_JOBS
+                            {seedScheduleJobs
                                 .filter(p => {
                                     if (p.status === "maintenance" || p.status === "offline") return false;
                                     if (sel.tech && (p.tech || "").toUpperCase() !== sel.tech.toUpperCase()) return false;
@@ -629,8 +637,8 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
                             // idle printers → available at current time + 1hr setup buffer
                             const now = new Date();
                             const currentHour = now.getHours() + now.getMinutes() / 60;
-                            const sameTech = SCHEDULE_JOBS.filter(p => (p.tech || "").toUpperCase() === (jaShowAutoConfirm.tech || sel?.tech || "").toUpperCase());
-                            const candidates = (sameTech.length > 0 ? sameTech : SCHEDULE_JOBS).filter(p => p.status !== "maintenance" && p.status !== "offline");
+                            const sameTech = seedScheduleJobs.filter(p => (p.tech || "").toUpperCase() === (jaShowAutoConfirm.tech || sel?.tech || "").toUpperCase());
+                            const candidates = (sameTech.length > 0 ? sameTech : seedScheduleJobs).filter(p => p.status !== "maintenance" && p.status !== "offline");
                             const withTime = candidates.map(p => {
                                 let avail;
                                 if (p.status === "printing" && p.start != null && p.dur > 0) {
@@ -695,7 +703,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
                             const now = new Date();
                             const currentHour = now.getHours() + now.getMinutes() / 60;
                             const targetTech = (jaShowManual.tech || sel?.tech || "").toUpperCase();
-                            const selectable = SCHEDULE_JOBS
+                            const selectable = seedScheduleJobs
                                 .filter(p => {
                                     if (p.status === "maintenance" || p.status === "offline") return false;
                                     if (targetTech && (p.tech || "").toUpperCase() !== targetTech) return false;
@@ -799,7 +807,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
                         {jaShowPrintLog && (() => {
                             const printerName = jaShowPrintLog.printer;
                             // Get scheduled jobs for this printer
-                            const scheduledJobs = SCHEDULE_JOBS.filter(j => j.printer === printerName && j.job);
+                            const scheduledJobs = seedScheduleJobs.filter(j => j.printer === printerName && j.job);
                             // Get allotted jobs for this printer
                             const allottedForPrinter = Object.entries(printerAssignments)
                                 .filter(([, a]) => a.printer === printerName)
@@ -883,7 +891,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
 
             {/* ── TAB: MATERIAL ── */}
             {reviewTab === "material" && (() => {
-                const allInv = sel.tech === "FDM" ? RAW_FILAMENTS : sel.tech === "SLA" ? RAW_RESINS : RAW_POWDERS;
+                const allInv = sel.tech === "FDM" ? seedRawFilaments : sel.tech === "SLA" ? seedRawResins : seedRawPowders;
                 const unit = sel.tech === "SLA" ? "L" : sel.tech === "SLS" ? "kg" : "spools";
 
                 // Build list of materials needed from the print request groups
@@ -1163,7 +1171,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
                                 <label className="fl" style={{ fontSize: 10 }}>Select Part</label>
                                 <select className="fsel" style={{ fontSize: 11 }} value={sparePartSelect} onChange={e => setSparePartSelect(e.target.value)}>
                                     <option value="">Choose a spare part...</option>
-                                    {SPARE_SEED.map(s => (<option key={s.id} value={s.id}>{s.name} ({s.location})</option>))}
+                                    {seedSpareSeed.map(s => (<option key={s.id} value={s.id}>{s.name} ({s.location})</option>))}
                                 </select>
                             </div>
                             <div style={{ width: 100 }}>
@@ -1175,7 +1183,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
                         {spareRequired.length > 0 && (
                             <div style={{ marginTop: 10 }}>
                                 {spareRequired.map((sp, idx) => {
-                                    const part = SPARE_SEED.find(s => s.id === sp.partId);
+                                    const part = seedSpareSeed.find(s => s.id === sp.partId);
                                     if (!part) return null;
                                     const sufficient = part.qty >= sp.qty;
                                     return (
@@ -1204,7 +1212,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
                         </div>
                         <div style={{ padding: 12 }}>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-                                {SPARE_SEED.map(s => {
+                                {seedSpareSeed.map(s => {
                                     const cat = SPARE_CATEGORIES.find(c => c.id === s.cat);
                                     const barCol = s.status === "ok" ? "var(--green)" : s.status === "low" ? "var(--gold)" : "var(--red)";
                                     const isInRequired = spareRequired.find(p => p.partId === s.id);
@@ -1537,7 +1545,7 @@ export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignm
                             <label className="fl">Assign Machine * <span className="tiny" style={{ color: "var(--accent)", fontWeight: 400 }}>{slotPrinter ? "· auto from Job Allotment" : "· select in Job Allotment first"}</span></label>
                             <select className="fsel" value={woMachine || slotPrinter || ""} onChange={e => setWoMachine(e.target.value)}>
                                 <option value="">— Select machine —</option>
-                                {(printersByTech.length > 0 ? printersByTech : SCHEDULE_JOBS).map(p => <option key={p.id} value={p.printer}>{p.printer} ({p.tech})</option>)}
+                                {(printersByTech.length > 0 ? printersByTech : seedScheduleJobs).map(p => <option key={p.id} value={p.printer}>{p.printer} ({p.tech})</option>)}
                             </select>
                         </div>
                         <div className="fg">

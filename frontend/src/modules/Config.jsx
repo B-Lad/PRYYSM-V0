@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { DT_CODES as SEED_DT_CODES, INTEGRATIONS } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { Tabs } from '../components/atoms.jsx';
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -270,12 +271,13 @@ function load(key, fallback) {
 }
 
 export function Config() {
+    const isDemo = useDemoMode();
     const [tab, setTab] = useState("factory");
     const [settings, setSettings] = useState(() => load("pr_config", DEFAULT_SETTINGS));
     const [techs, setTechs] = useState(() => load("pr_techs", DEFAULT_TECHS));
-    const [dtCodes, setDtCodes] = useState(() => load("pr_dt_codes", [...SEED_DT_CODES]));
+    const [dtCodes, setDtCodes] = useState(() => load("pr_dt_codes", isDemo ? [...SEED_DT_CODES] : []));
     const [notifs, setNotifs] = useState(() => load("pr_notif", DEFAULT_NOTIFS));
-    const [integrations, setIntegrations] = useState(() => load("pr_integrations", INTEGRATIONS));
+    const [integrations, setIntegrations] = useState(() => load("pr_integrations", isDemo ? INTEGRATIONS : []));
     const [saved, setSaved] = useState(false);
 
     function persist(key, setter, val) {

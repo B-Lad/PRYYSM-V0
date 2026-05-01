@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
 import { SCHEDULE_JOBS, ALLOT_QUEUE } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { TB, SB, Prog, Modal } from '../components/atoms.jsx';
 
 export function JobAllotment() {
+    const isDemo = useDemoMode();
     const [techFilter, setTechFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
     const [showAutoConfirm, setShowAutoConfirm] = useState(null);
     const [showManual, setShowManual] = useState(null);
     const [showAddProject, setShowAddProject] = useState(false);
     const [showPrintLog, setShowPrintLog] = useState(null);
-    const [queue, setQueue] = useState(ALLOT_QUEUE);
+    const [queue, setQueue] = useState(isDemo ? ALLOT_QUEUE : []);
     const [newProj, setNewProj] = useState({ name: "", qty: 1, deadline: new Date().toISOString().split("T")[0], tech: "FDM", priority: "Medium" });
 
-    const printerGrid = SCHEDULE_JOBS.slice(0, 8);
+    const printerGrid = (isDemo ? SCHEDULE_JOBS : []).slice(0, 8);
     const priorityBadge = { low: "bnorm", medium: "bwait", high: "burgent" };
     const priorityColor = { low: "var(--text3)", medium: "var(--yellow)", high: "var(--red)" };
 

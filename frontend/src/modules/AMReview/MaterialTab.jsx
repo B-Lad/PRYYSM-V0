@@ -3,15 +3,17 @@ import { ReviewSection } from "./shared/ReviewSection";
 import { GroupSelector } from "./shared/GroupSelector";
 import { TB } from "../../components/atoms";
 import { MATERIALS_DATA } from "../../data/seed";
+import { useDemoMode } from "../../hooks/useDemoMode";
 
 // Unit label by tech
 const UNIT = { FDM: "spools", SLA: "L", SLS: "kg" };
 const MAT_UNIT = { FDM: "g", SLA: "ml", SLS: "g" };
 
 export function MaterialTab({ sel, groups, groupIndex, setGroupIndex, reviewData, updateReviewData, onStatusChange }) {
+    const isDemo = useDemoMode();
     const tech = sel?.tech || "FDM";
     const matUnit = MAT_UNIT[tech] || "g";
-    const inventory = MATERIALS_DATA.filter(m => m.tech === tech);
+    const inventory = (isDemo ? MATERIALS_DATA : []).filter(m => m.tech === tech);
 
     const currentGroup = groups?.[groupIndex] || { qty: sel?.qty || 0, materials: [] };
     const qty = parseInt(currentGroup.qty) || sel?.qty || 0;

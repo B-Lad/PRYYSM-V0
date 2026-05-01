@@ -2,6 +2,7 @@ import { useState } from "react";
 import { TB, SB, Modal } from "../../components/atoms";
 import { ScheduleGantt } from "../../components/ScheduleGantt";
 import { SCHEDULE_JOBS } from "../../data/seed";
+import { useDemoMode } from "../../hooks/useDemoMode";
 
 function Prog({ pct, h = 6 }) {
     return (
@@ -19,6 +20,8 @@ export function JobAllotment({
     tabStatus,
     setTabStatus,
 }) {
+    const isDemo = useDemoMode();
+    const seedScheduleJobs = isDemo ? seedScheduleJobs : [];
     const [ganttFilter, setGanttFilter] = useState("all");
     const [ganttDate, setGanttDate] = useState(new Date("2026-04-23"));
     const [ganttView, setGanttView] = useState("day");
@@ -60,7 +63,7 @@ export function JobAllotment({
         const groupIndex = isGroupAssignment ? parseInt(projectId.split("-grp")[1]) : null;
         const project = lcProjects.find(p => p.id === baseProjectId) || assignment.projectData;
         const groupData = isGroupAssignment && groupIndex !== null ? (project?.groups?.[groupIndex] || {}) : {};
-        const printerData = SCHEDULE_JOBS.find(p => p.printer === assignment.printer || p.printerCode === assignment.printer);
+        const printerData = seedScheduleJobs.find(p => p.printer === assignment.printer || p.printerCode === assignment.printer);
 
         let startHour = 10;
         let startDate = new Date("2026-04-23");
@@ -100,7 +103,7 @@ export function JobAllotment({
         };
     });
 
-    const allJobs = [...SCHEDULE_JOBS, ...allottedJobs];
+    const allJobs = [...seedScheduleJobs, ...allottedJobs];
 
     const groups = sel?.groups?.length > 0 ? sel.groups : [{ qty: sel?.qty || 0, estHrs: sel?.estHrs, estMin: sel?.estMin }];
 
@@ -226,7 +229,7 @@ export function JobAllotment({
             {/* ── Printer Grid ── */}
             <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 10 }}>Printer Availability</div>
             <div className="g g4 mb16">
-                {SCHEDULE_JOBS
+                {seedScheduleJobs
                     .filter(p => {
                         if (p.status === "maintenance" || p.status === "offline") return false;
                         if (sel.tech && (p.tech || "").toUpperCase() !== sel.tech.toUpperCase()) return false;
@@ -296,8 +299,8 @@ export function JobAllotment({
             {jaShowAutoConfirm && (() => {
                 const now = new Date();
                 const currentHour = now.getHours() + now.getMinutes() / 60;
-                const sameTech = SCHEDULE_JOBS.filter(p => (p.tech || "").toUpperCase() === (jaShowAutoConfirm.tech || sel?.tech || "").toUpperCase());
-                const candidates = (sameTech.length > 0 ? sameTech : SCHEDULE_JOBS).filter(p => p.status !== "maintenance" && p.status !== "offline");
+                const sameTech = seedScheduleJobs.filter(p => (p.tech || "").toUpperCase() === (jaShowAutoConfirm.tech || sel?.tech || "").toUpperCase());
+                const candidates = (sameTech.length > 0 ? sameTech : seedScheduleJobs).filter(p => p.status !== "maintenance" && p.status !== "offline");
                 const withTime = candidates.map(p => {
                     let avail;
                     if (p.status === "printing" && p.start != null && p.dur > 0) avail = p.start + p.dur + 0.25;
@@ -356,7 +359,7 @@ export function JobAllotment({
                 const now = new Date();
                 const currentHour = now.getHours() + now.getMinutes() / 60;
                 const targetTech = (jaShowManual.tech || sel?.tech || "").toUpperCase();
-                const selectable = SCHEDULE_JOBS
+                const selectable = seedScheduleJobs
                     .filter(p => {
                         if (p.status === "maintenance" || p.status === "offline") return false;
                         if (targetTech && (p.tech || "").toUpperCase() !== targetTech) return false;

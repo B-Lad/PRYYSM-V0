@@ -2,13 +2,20 @@ import React, { useState } from "react";
 import { PROJECTS, WOS, DEPARTMENTS, MACHINES_BASE, LC_SEED, LIFECYCLE_STAGES } from '../data/seed.jsx';
 import { TB, SB, DB, Tabs, Modal } from '../components/atoms.jsx';
 import { DEPT_C } from '../data/constants.js';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 
 export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) {
+    const isDemo = useDemoMode();
     const [tab, setTab] = useState("projects");
     const [selProj, setSelProj] = useState(null);
     const [selWO, setSelWO] = useState(null);
     const [showRestartModal, setShowRestartModal] = useState(null);
     const [selCompleted, setSelCompleted] = useState(null);
+
+    const seedProjects = isDemo ? PROJECTS : [];
+    const seedWos = isDemo ? WOS : [];
+    const seedDepartments = isDemo ? DEPARTMENTS : [];
+    const seedMachines = isDemo ? MACHINES_BASE : [];
 
     // Get completed projects from lcProjects
     const completedProjects = (lcProjects || []).filter(p => p.stage === "closed");
@@ -66,7 +73,7 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
                 <div className="g g21">
                     <div className="card">
                         <div className="tw"><table><thead><tr><th>Project</th><th>Name</th><th>Owner</th><th>Status</th><th>WOs</th><th>Due</th></tr></thead><tbody>
-                            {PROJECTS.filter(p => p.status !== "completed").map(p => (
+                            {seedProjects.filter(p => p.status !== "completed").map(p => (
                                 <tr key={p.id} className="cl" onClick={() => setSelProj(p)} style={{ background: selProj?.id === p.id ? "var(--bg3)" : undefined }}>
                                     <td><span className="tacc">{p.id}</span></td>
                                     <td style={{ fontWeight: 600, color: selProj?.id === p.id ? "var(--accent)" : undefined, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</td>
@@ -91,7 +98,7 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
                                     ))}
                                     <div className="sep" />
                                     <div className="tiny mb8">WORK ORDERS</div>
-                                    {WOS.filter(w => w.project === selProj.id).map(wo => (
+                                    {seedWos.filter(w => w.project === selProj.id).map(wo => (
                                         <div key={wo.id} className="ii">
                                             <span className="tacc" style={{ flexShrink: 0 }}>{wo.id}</span>
                                             <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{wo.part}</div><div className="tiny"><TB tech={wo.tech} /></div></div>
@@ -108,7 +115,7 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
             {/* WORK ORDERS TAB */}
             {tab === "wos" && (
                 <div className="card"><div className="tw"><table><thead><tr><th>WO</th><th>Part</th><th>Project</th><th>Tech</th><th>Qty</th><th>Status</th><th>Due</th><th>Priority</th><th>Requestor</th></tr></thead><tbody>
-                    {WOS.map(wo => (
+                    {seedWos.map(wo => (
                         <tr key={wo.id} className="cl" onClick={() => setSelWO(wo)}>
                             <td><span className="tacc">{wo.id}</span></td>
                             <td style={{ fontWeight: 500, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{wo.part}</td>
@@ -234,7 +241,7 @@ export function Projects({ lcProjects, onLcProjectsChange, toast, setSection }) 
                         <div className="fg"><label className="fl">Priority</label><select className="fsel" defaultValue={selWO.priority}><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
                     </div>
                     <div className="frow">
-                        <div className="fg"><label className="fl">Assign Machine</label><select className="fsel" defaultValue={selWO.machine || ""}>{MACHINES_BASE.filter(m => m.tech === selWO.tech).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}<option value="">— Unassigned</option></select></div>
+                        <div className="fg"><label className="fl">Assign Machine</label><select className="fsel" defaultValue={selWO.machine || ""}>{seedMachines.filter(m => m.tech === selWO.tech).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}<option value="">— Unassigned</option></select></div>
                         <div className="fg"><label className="fl">Due Date</label><input type="date" className="fi" defaultValue={selWO.due} /></div>
                     </div>
                     <div className="fg mb12"><label className="fl">Notes</label><textarea className="fta" placeholder="Add notes or instructions..."></textarea></div>

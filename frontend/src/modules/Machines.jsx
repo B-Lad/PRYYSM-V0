@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { WOS, WCS } from '../data/seed.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 import { TB, SB, Ring, Spark, Prog, DB, LiveBadge, Modal } from '../components/atoms.jsx';
 import { TECH_C, DT_CODES } from '../data/constants.js';
 
 export function Machines({ machines }) {
+    const isDemo = useDemoMode();
+    const seedWos = isDemo ? seedWos : [];
+    const seedWcs = isDemo ? seedWcs : [];
     const [sel, setSel] = useState(null);
     const [showDT, setShowDT] = useState(false);
     const m = sel ? machines.find(x => x.id === sel) : null;
@@ -14,14 +18,14 @@ export function Machines({ machines }) {
                 <div className="card mb16">
                     <div className="ch"><span className="ct">Work Centers</span></div>
                     <div className="tw"><table><thead><tr><th>Center</th><th>Type</th><th>Machines</th><th>Load</th></tr></thead><tbody>
-                        {WCS.map(wc => <tr key={wc.id}><td style={{ fontWeight: 500 }}>{wc.name}</td><td className="tdim">{wc.type}</td><td><span className="tm">{wc.machines.join(", ") || "—"}</span></td><td style={{ width: 130 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ flex: 1 }}><Prog pct={(wc.load / wc.cap) * 100} color={wc.load >= wc.cap ? "red" : "green"} /></div><span className="tm" style={{ color: wc.load >= wc.cap ? "var(--red)" : "var(--text2)" }}>{wc.load}/{wc.cap}</span></div></td></tr>)}
+                        {seedWcs.map(wc => <tr key={wc.id}><td style={{ fontWeight: 500 }}>{wc.name}</td><td className="tdim">{wc.type}</td><td><span className="tm">{wc.machines.join(", ") || "—"}</span></td><td style={{ width: 130 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ flex: 1 }}><Prog pct={(wc.load / wc.cap) * 100} color={wc.load >= wc.cap ? "red" : "green"} /></div><span className="tm" style={{ color: wc.load >= wc.cap ? "var(--red)" : "var(--text2)" }}>{wc.load}/{wc.cap}</span></div></td></tr>)}
                     </tbody></table></div>
                 </div>
                 <div className="card">
                     <div className="ch"><span className="ct">Machines / Printers</span><LiveBadge /></div>
                     <div className="tw"><table><thead><tr><th>ID</th><th>Name</th><th>Tech</th><th>Status</th><th>Job</th><th>Dept</th><th>Progress</th><th>OEE</th></tr></thead><tbody>
                         {machines.map(m2 => {
-                            const wo = WOS.find(w => w.id === m2.job);
+                            const wo = seedWos.find(w => w.id === m2.job);
                             return <tr key={m2.id} className="cl" onClick={() => setSel(m2.id)} style={{ background: sel === m2.id ? "var(--bg3)" : undefined }}>
                                 <td><span className="tm" style={{ color: "var(--text3)" }}>{m2.id}</span></td>
                                 <td style={{ fontWeight: 500, color: sel === m2.id ? "var(--accent)" : undefined }}>{m2.name}</td>
@@ -47,7 +51,7 @@ export function Machines({ machines }) {
                             {m.status === "running" && <div className="mb16">
                                 <div className="tiny mb8">CURRENT JOB</div>
                                 <div style={{ fontFamily: "var(--fd)", fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{m.job}</div>
-                                <div className="tiny mb8">{WOS.find(w => w.id === m.job)?.part} — {WOS.find(w => w.id === m.job)?.project}</div>
+                                <div className="tiny mb8">{seedWos.find(w => w.id === m.job)?.part} — {seedWos.find(w => w.id === m.job)?.project}</div>
                                 <Prog pct={m.pct} h={6} />
                                 <div className="rowsb mt8"><span className="tiny">{Math.round(m.pct)}% complete</span><span className="mono" style={{ fontSize: 14 }}>{m.remaining}</span></div>
                             </div>}

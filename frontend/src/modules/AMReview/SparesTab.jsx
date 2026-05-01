@@ -2,8 +2,11 @@ import { useState, useEffect } from "react";
 import { ReviewSection } from "./shared/ReviewSection";
 import { GroupSelector } from "./shared/GroupSelector";
 import { SPARE_SEED } from "../../data/seed";
+import { useDemoMode } from "../../hooks/useDemoMode";
 
 export function SparesTab({ sel, groups, groupIndex, setGroupIndex, reviewData, updateReviewData, onStatusChange }) {
+    const isDemo = useDemoMode();
+    const seedSpareSeed = isDemo ? seedSpareSeed : [];
     const currentGroup = groups?.[groupIndex] || { qty: sel?.qty || 0 };
 
     const saved = reviewData?.[groupIndex]?.spares || {};
@@ -31,7 +34,7 @@ export function SparesTab({ sel, groups, groupIndex, setGroupIndex, reviewData, 
 
     function addSpare() {
         if (!selectedId) return;
-        const spare = SPARE_SEED.find(s => s.id === selectedId);
+        const spare = seedSpareSeed.find(s => s.id === selectedId);
         if (!spare) return;
         const next = [...required, { ...spare, addedQty: selectedQty, key: `${Date.now()}` }];
         setRequired(next);
@@ -84,8 +87,8 @@ export function SparesTab({ sel, groups, groupIndex, setGroupIndex, reviewData, 
         }
     }
 
-    // Group SPARE_SEED by category for the picker
-    const cats = [...new Set(SPARE_SEED.map(s => s.cat))];
+    // Group seedSpareSeed by category for the picker
+    const cats = [...new Set(seedSpareSeed.map(s => s.cat))];
     const hasItems = required.length > 0 || procReqs.length > 0;
 
     return (
@@ -113,7 +116,7 @@ export function SparesTab({ sel, groups, groupIndex, setGroupIndex, reviewData, 
                             <option value="">Select spare / consumable...</option>
                             {cats.map(cat => (
                                 <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
-                                    {SPARE_SEED.filter(s => s.cat === cat).map(s => (
+                                    {seedSpareSeed.filter(s => s.cat === cat).map(s => (
                                         <option key={s.id} value={s.id}>
                                             {s.name} — {s.qty} in stock {s.status !== "ok" ? `(${s.status})` : ""}
                                         </option>
@@ -217,7 +220,7 @@ export function SparesTab({ sel, groups, groupIndex, setGroupIndex, reviewData, 
             <div style={{ padding: "12px 14px", background: "var(--bg3)", borderRadius: "var(--r2)", border: "1px solid var(--border)", marginTop: 16 }}>
                 <div style={{ fontFamily: "var(--fd)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 8 }}>Available Spares Inventory</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 6 }}>
-                    {SPARE_SEED.map(s => (
+                    {seedSpareSeed.map(s => (
                         <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "var(--bg2)", borderRadius: 6, border: `1px solid ${s.status === "critical" ? "rgba(239,68,68,.3)" : s.status === "low" ? "rgba(184,134,11,.3)" : "var(--border)"}` }}>
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.status === "critical" ? "var(--red)" : s.status === "low" ? "var(--yellow)" : "var(--green)", flexShrink: 0 }} />
                             <div style={{ flex: 1, minWidth: 0 }}>

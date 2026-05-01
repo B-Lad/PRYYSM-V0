@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MACHINES_BASE } from '../data/seed.jsx';
+import { useDemoMode } from './useDemoMode.js';
 
 export function useLive() {
-    const [machines, setMachines] = useState(MACHINES_BASE);
+    const isDemo = useDemoMode();
+    const [machines, setMachines] = useState(isDemo ? MACHINES_BASE : []);
+    useEffect(() => {
+        setMachines(isDemo ? MACHINES_BASE : []);
+    }, [isDemo]);
     useEffect(() => {
         const id = setInterval(() => {
             setMachines(prev => prev.map(m => {

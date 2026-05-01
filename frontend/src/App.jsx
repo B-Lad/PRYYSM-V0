@@ -3,6 +3,7 @@ import CSS from './styles.js';
 import { NAV } from './data/nav.js';
 import { useLive } from './hooks/useLive.js';
 import { useRealtimeNotifications } from './hooks/useNotifications.js';
+import { DemoModeContext } from './hooks/useDemoMode.js';
 import { api } from './services/api.js';
 import { Modal } from './components/atoms.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
@@ -89,8 +90,16 @@ export default function App() {
         setLoading(true);
         try {
             const me = await api.getMe();
+            const previousTenantId = localStorage.getItem("tenant_id");
+            const newTenantId = me.tenant_id || "";
+            if (previousTenantId && previousTenantId !== newTenantId) {
+                localStorage.removeItem("lc_projects");
+                localStorage.removeItem("printer_assignments");
+                setLcProjects([]);
+                setPrinterAssignments({});
+            }
             localStorage.setItem("user_role", me.role || "");
-            localStorage.setItem("tenant_id", me.tenant_id || "");
+            localStorage.setItem("tenant_id", newTenantId);
             localStorage.setItem("user_id", me.id || "");
             setSession(me);
             setIsAuthenticated(true);
@@ -299,7 +308,7 @@ export default function App() {
 
     return (
         <ErrorBoundary>
-            <>
+            <DemoModeContext.Provider value={session?.demo_mode === true}>
                 <style>{CSS}</style>
                 <div className="toast-wrap">
                     {toasts.map(t => <div key={t.id} className={`toast t${t.type}`}><span>{t.type === "s" ? "✓" : t.type === "e" ? "✗" : "ℹ"}</span>{t.msg}</div>)}
@@ -401,7 +410,7 @@ export default function App() {
                         </div>
                     </Modal>
                 )}
-            </>
+            </DemoModeContext.Provider>
         </ErrorBoundary>
     );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { TB, SB, Ring, Spark, Prog, AStrip, Modal, Tabs } from '../components/atoms.jsx';
+import { useDemoMode } from '../hooks/useDemoMode.js';
 
 const FLEET_DATA = [
     {
@@ -144,10 +145,11 @@ export function PrinterDetailPanel({ dp, CYCLE, SC, SB, SL, age, onClose, onMain
 }
 
 export function PrinterFleet() {
+    const isDemo = useDemoMode();
     const [tab, setTab] = useState("fleet");
     const [techFilter, setTechFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
-    const [printers, setPrinters] = useState(FLEET_DATA);
+    const [printers, setPrinters] = useState(isDemo ? FLEET_DATA : []);
     const [showAdd, setShowAdd] = useState(false);
     const [confirmRemove, setConfirmRemove] = useState(null);
     const [confirmRemove2, setConfirmRemove2] = useState(null);
