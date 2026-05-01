@@ -35,7 +35,9 @@ async function fetchApi(endpoint, options = {}, retries = 2) {
             }
         }
     }
-    throw new Error(`Network error reaching API at ${API_URL}. The backend may be waking up (Render free tier) or CORS is misconfigured.`);
+    // eslint-disable-next-line no-console
+    console.error('[API Debug] Origin:', window.location.origin, '| API URL:', API_URL, '| Error:', lastError);
+    throw new Error(`Network error reaching API at ${API_URL}.\n\nCommon causes:\n1. CORS: Your domain (${window.location.origin}) is not in the backend allowlist.\n2. Render cold start: Backend is waking up — wait 30s and refresh.\n3. Wrong API URL: Check VITE_API_URL env var in Vercel.\n\nOpen browser Console (F12) for details.`);
 }
 
 export const api = {
