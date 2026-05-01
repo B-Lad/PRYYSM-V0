@@ -30,6 +30,7 @@ export const api = {
     // Auth
     login: (data) => fetchApi('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
     getMe: () => fetchApi('/auth/me'),
+    updateMe: (data) => fetchApi('/auth/me', { method: 'PUT', body: JSON.stringify(data) }),
     changePassword: (data) => fetchApi('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
     setUserPassword: (id, data) => fetchApi(`/auth/users/${id}/set-password`, { method: 'POST', body: JSON.stringify(data) }),
 

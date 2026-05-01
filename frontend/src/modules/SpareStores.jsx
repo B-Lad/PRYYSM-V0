@@ -87,7 +87,7 @@ function SpareFormModal({ title, data, setData, onSave, onClose }) {
     );
 }
 
-export function SpareStores() {
+export function SpareStores({ printerAssignments = {} }) {
     const [tab, setTab] = useState("dashboard");
     const [items, setItems] = useState(SPARE_SEED);
     const [catFilter, setCatFilter] = useState("all");
@@ -105,6 +105,12 @@ export function SpareStores() {
     const lowStock = items.filter(i => i.status === "low" || i.status === "critical");
     const outOfStock = items.filter(i => i.qty === 0);
     const catCount = SPARE_CATEGORIES.length;
+
+    const sparesProcReqs = Object.values(printerAssignments || {}).flatMap(a => 
+        (a.woData?.procReqs || [])
+            .filter(req => req.source === 'spares')
+            .map(req => ({ ...req, project: a.projectData?.name || "Unknown Project", woId: a.woData?.woId }))
+    );
 
     const filtered = items.filter(i => {
         if (catFilter !== "all" && i.cat !== catFilter) return false;
@@ -201,12 +207,9 @@ export function SpareStores() {
     return (
         <div>
             {/* Header */}
-            <div className="row mb16" style={{ gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "var(--r2)", background: "var(--adim)", border: "1px solid rgba(37,99,235,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⊡</div>
-                <div>
-                    <div style={{ fontFamily: "var(--fd)", fontSize: 15, fontWeight: 800 }}>Spares and Stores</div>
-                    <div className="tiny">Manage all your spare parts and store items.</div>
-                </div>
+            <div className="pg-hd">
+                <span className="pg-eyebrow">OPERATIONS</span>
+                <h1 className="pg-title">Spares & Stores</h1>
             </div>
 
             {/* Tabs */}
@@ -252,6 +255,34 @@ export function SpareStores() {
                             </div>
                         </div>
                     </div>
+
+                    {sparesProcReqs.length > 0 && (
+                        <div className="card mb16" style={{ border: "1px solid var(--accent)" }}>
+                            <div className="ch" style={{ background: "rgba(37,99,235,.05)", borderBottom: "1px solid rgba(37,99,235,.15)" }}>
+                                <span className="ct" style={{ color: "var(--accent)" }}>AM Review Procurement Requests</span>
+                                <span className="tiny" style={{ color: "var(--accent)" }}>Requested directly from production planning</span>
+                            </div>
+                            <div className="tw">
+                                <table>
+                                    <thead><tr><th>Project / WO</th><th>Spare / Tool Name</th><th>Requested Qty</th><th>Notes</th><th>Status</th></tr></thead>
+                                    <tbody>
+                                        {sparesProcReqs.map((req, i) => (
+                                            <tr key={i} style={{ background: "var(--bg1)" }}>
+                                                <td>
+                                                    <div style={{ fontWeight: 700 }}>{req.woId}</div>
+                                                    <div className="tiny dim">{req.project}</div>
+                                                </td>
+                                                <td style={{ fontWeight: 600, color: "var(--text)" }}>{req.name}</td>
+                                                <td className="mono" style={{ color: "var(--accent)", fontWeight: 600 }}>{req.qty}</td>
+                                                <td className="tiny">{req.notes || "—"}</td>
+                                                <td><span className="b bidle" style={{ fontSize: 9 }}>Pending Purchase</span></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
 
                     {lowStock.length > 0 && (
                         <div className="card">

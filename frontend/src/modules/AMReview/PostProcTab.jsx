@@ -112,25 +112,34 @@ export function PostProcTab({ sel, groups, groupIndex, setGroupIndex, reviewData
         });
     }
 
+    function copyToAll() {
+        if (!window.confirm("Copy these post-processing settings to ALL groups? This will overwrite existing group data.")) return;
+        const numGroups = groups?.length || 1;
+        for (let i = 0; i < numGroups; i++) {
+            updateReviewData(i, "pp", {
+                selected, customSteps, notes, confirmed,
+                stepsList: [
+                    ...steps.filter(s => selected[s.id]).map(s => ({ id: s.id, label: s.label, time: s.time, required: s.required })),
+                    ...customSteps,
+                ],
+            });
+        }
+    }
+
     return (
         <ReviewSection num="5" title="Post-Processing Instructions" status={confirmed ? "ok" : hasSteps ? "warn" : null}>
             <GroupSelector groups={groups} selectedIndex={groupIndex} onSelect={setGroupIndex} project={sel} />
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, padding: 12, background: "var(--bg3)", borderRadius: "var(--r2)", border: "1px solid var(--border)" }}>
-                <div>
-                    <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700 }}>{sel?.name} — Group {groupIndex + 1}</div>
-                    <div className="tiny" style={{ color: "var(--text2)" }}>{tech} · {currentGroup.name || `Group ${groupIndex + 1}`} · ×{currentGroup.qty || sel?.qty || 0} pcs</div>
-                    {sel?.requestNote && <div className="tiny" style={{ color: "var(--text3)", fontStyle: "italic", marginTop: 2 }}>Note: {sel.requestNote}</div>}
-                </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
                 <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)" }}>
-                    {tech} Post-Processing Steps — {selectedSteps.length + customSteps.length} selected
+                    {tech} Steps — {selectedSteps.length + customSteps.length} selected
                 </div>
-                <button className={`btn ${confirmed ? "btp" : hasSteps ? "btg" : "btg"} bts`} style={{ fontSize: 11 }} onClick={confirmSteps} disabled={!hasSteps}>
-                    {confirmed ? "✓ Confirmed — Send to Operator" : "Confirm & Send to Operator"}
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btg bts" style={{ fontSize: 10 }} onClick={copyToAll}>Apply to All Groups</button>
+                    <button className={`btn ${confirmed ? "btp" : hasSteps ? "btg" : "btg"} bts`} style={{ fontSize: 10 }} onClick={confirmSteps} disabled={!hasSteps}>
+                        {confirmed ? "✓ Confirmed" : "Confirm Steps"}
+                    </button>
+                </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8, marginBottom: 14 }}>

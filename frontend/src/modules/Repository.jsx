@@ -122,7 +122,7 @@ export function Repository({ lcProjects }) {
 
     return (
         <div>
-            <div className="pg-hd"><span className="pg-eyebrow">SYSTEM</span><h1 className="pg-title">Project Repository</h1></div>
+            <div className="pg-hd"><span className="pg-eyebrow">SYSTEM</span><h1 className="pg-title">Repository</h1></div>
 
             {/* Stats Cards */}
             <div className="g g4 mb16">

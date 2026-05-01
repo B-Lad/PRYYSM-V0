@@ -388,7 +388,7 @@ export function PostPosingQC() {
             {/* Page Header */}
             <div className="pg-hd">
                 <span className="pg-eyebrow">OPERATIONS</span>
-                <h1 className="pg-title">Post Posing & QC Inspection</h1>
+                <h1 className="pg-title">Post Posing & QC</h1>
             </div>
 
             {/* Summary Cards */}

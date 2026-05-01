@@ -17,6 +17,7 @@ from schemas.schemas import (
     UserLogin,
     UserOut,
     UserUpdate,
+    UserUpdateMe,
 )
 from passlib.context import CryptContext
 
@@ -49,6 +50,7 @@ def serialize_user(user: User, tenant: Optional[Tenant] = None):
         "id": user.id,
         "email": user.email,
         "full_name": user.full_name,
+        "avatar_url": user.avatar_url,
         "role": user.role,
         "is_active": user.is_active,
         "tenant_id": str(user.tenant_id) if user.tenant_id else None,
@@ -65,6 +67,7 @@ def serialize_session(user: User, tenant: Optional[Tenant] = None):
         "id": str(user.id),
         "email": user.email,
         "full_name": user.full_name,
+        "avatar_url": user.avatar_url,
         "role": user.role,
         "tenant_id": str(user.tenant_id) if user.tenant_id else None,
         "is_active": user.is_active,
@@ -190,6 +193,32 @@ def get_current_user(ctx: CurrentTenant, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == ctx.user_id).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+    tenant = get_tenant(db, user.tenant_id)
+    attach_tenant(user, tenant)
+    return serialize_session(user, tenant)
+
+
+@router.put("/me", response_model=SessionOut)
+def update_current_user(
+    user_data: UserUpdateMe, ctx: CurrentTenant, db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.id == ctx.user_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if email is being changed and already exists
+    if user_data.email != user.email:
+        existing = db.query(User).filter(User.email == user_data.email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+            
+    user.email = user_data.email
+    user.full_name = user_data.full_name
+    if user_data.avatar_url is not None:
+        user.avatar_url = user_data.avatar_url
+        
+    db.commit()
+    db.refresh(user)
     tenant = get_tenant(db, user.tenant_id)
     attach_tenant(user, tenant)
     return serialize_session(user, tenant)

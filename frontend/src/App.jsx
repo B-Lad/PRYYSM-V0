@@ -191,6 +191,53 @@ export default function App() {
         }
     }
 
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [profileForm, setProfileForm] = useState({ full_name: "", email: "", avatar_url: "" });
+
+    function handleOpenProfile() {
+        setProfileForm({
+            full_name: session?.full_name || "",
+            email: session?.email || "",
+            avatar_url: session?.avatar_url || ""
+        });
+        setShowProfileModal(true);
+    }
+
+    function handlePhotoUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (file.size > 2 * 1024 * 1024) { // 2MB limit
+            toast("Image must be less than 2MB.", "e");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setProfileForm(prev => ({ ...prev, avatar_url: reader.result }));
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function handleUpdateProfile() {
+        if (!profileForm.full_name || !profileForm.email) {
+            toast("Please fill in both name and email.", "e");
+            return;
+        }
+        try {
+            const updated = await api.updateMe({
+                full_name: profileForm.full_name,
+                email: profileForm.email,
+                avatar_url: profileForm.avatar_url || null
+            });
+            setSession({ ...session, ...updated });
+            setShowProfileModal(false);
+            toast("Profile updated successfully.", "s");
+        } catch (err) {
+            toast(err.message || "Failed to update profile.", "e");
+        }
+    }
+
     if (loading) return <div style={{ background: "var(--bg1)", height: "100vh" }} />;
     if (!isAuthenticated) return (
         <Suspense fallback={<div style={{ height: "100vh", background: "var(--bg1)" }} />}>
@@ -198,15 +245,51 @@ export default function App() {
         </Suspense>
     );
 
+    const handleWOIssued = (woId, project, gIdx, woData) => {
+        // Sync Work Order data to the Print Schedule's assignment tracking
+        setPrinterAssignments(prev => ({
+            ...prev,
+            [`${project.id}-grp${gIdx}`]: {
+                printer: woData.machine,
+                operator: woData.operator,
+                startTime: woData.sched, // e.g., YYYY-MM-DD
+                confirmed: woData.confirmed,
+                projectData: project,
+                woData: woData
+            }
+        }));
+
+        setLcProjects(prev => prev.map(p => {
+            if (p.id !== project.id) return p;
+            const now = new Date();
+            const ts = now.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+            const nextStage = "planning";
+            const newHist = p.history.map(h => {
+                if (h.stage === p.stage) return { ...h, done: true, time: ts, note: `AM Review complete. WO ${woId} issued.` };
+                if (h.stage === nextStage) return { ...h, time: ts };
+                return h;
+            });
+            return { ...p, stage: nextStage, woId, machine: woData.machine, history: newHist };
+        }));
+        toast(`Work Order ${woId} issued`, "s");
+    };
+
     const sections = {
         overview: <Overview machines={machines} setSection={setSection} />,
         requests: <PrintRequests lcProjects={lcProjects} onLcProjectsChange={setLcProjects} toast={toast} />,
-        amreview: <AMReview lcProjects={lcProjects} onLcProjectsChange={setLcProjects} toast={toast} printerAssignments={printerAssignments} onPrinterAssignmentsChange={setPrinterAssignments} />,
+        amreview: <AMReview
+            lcProjects={lcProjects}
+            onLcProjectsChange={setLcProjects}
+            onWOIssued={handleWOIssued}
+            toast={toast}
+            printerAssignments={printerAssignments}
+            onPrinterAssignmentsChange={setPrinterAssignments}
+        />,
         projects: <Projects lcProjects={lcProjects} onLcProjectsChange={setLcProjects} toast={toast} setSection={setSection} />,
         fleet: <PrinterFleet />,
         schedule: <PrintSchedule lcProjects={lcProjects} printerAssignments={printerAssignments} onPrinterAssignmentsChange={setPrinterAssignments} />,
-        rawmat: <RawMaterialInventory />,
-        spares: <SpareStores />,
+        rawmat: <RawMaterialInventory printerAssignments={printerAssignments} />,
+        spares: <SpareStores printerAssignments={printerAssignments} />,
         postposing: <PostPosingQC />,
         flow: <Flow lcProjects={lcProjects} />,
         config: <Config />,
@@ -247,7 +330,7 @@ export default function App() {
 
                     <div className="main">
                         <Suspense fallback={<header style={{ height: 60, background: "#fff", borderBottom: "1px solid #e2e8f0" }} />}>
-                            <TopBar onLogout={handleLogout} onChangePassword={() => setShowPasswordModal(true)} session={session} toggleSidebar={() => setOpen(p => !p)} />
+                            <TopBar onLogout={handleLogout} onChangePassword={() => setShowPasswordModal(true)} onChangeProfile={handleOpenProfile} session={session} toggleSidebar={() => setOpen(p => !p)} />
                         </Suspense>
                         <main className="page">
                             <div className="pinner">
@@ -280,6 +363,41 @@ export default function App() {
                         <div className="fg">
                             <label className="fl">Confirm Password</label>
                             <input className="fi" type="password" value={passwordForm.confirm_password} onChange={e => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })} />
+                        </div>
+                    </Modal>
+                )}
+
+                {showProfileModal && (
+                    <Modal
+                        title="Profile Settings"
+                        onClose={() => setShowProfileModal(false)}
+                        footer={<><button className="btn btg bts" onClick={() => setShowProfileModal(false)}>Cancel</button><button className="btn btp bts" onClick={handleUpdateProfile}>Save Changes</button></>}
+                    >
+                        <div style={{ display: "flex", gap: 20, marginBottom: 16 }}>
+                            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "var(--bg3)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+                                {profileForm.avatar_url ? (
+                                    <img src={profileForm.avatar_url} alt="Avatar Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                ) : (
+                                    <span style={{ fontSize: 24, color: "var(--text3)" }}>👤</span>
+                                )}
+                            </div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                                <label className="fl" style={{ marginBottom: 8 }}>Profile Photo</label>
+                                <label className="btn btg bts" style={{ width: "fit-content", cursor: "pointer", fontSize: 11 }}>
+                                    Upload from Desktop
+                                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoUpload} />
+                                </label>
+                                <div className="tiny mt4" style={{ color: "var(--text3)" }}>Max 2MB (JPEG, PNG).</div>
+                            </div>
+                        </div>
+
+                        <div className="fg mb12">
+                            <label className="fl">Full Name</label>
+                            <input className="fi" type="text" value={profileForm.full_name} onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })} placeholder="E.g., Jane Doe" />
+                        </div>
+                        <div className="fg">
+                            <label className="fl">Email Address</label>
+                            <input className="fi" type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} placeholder="jane@example.com" />
                         </div>
                     </Modal>
                 )}

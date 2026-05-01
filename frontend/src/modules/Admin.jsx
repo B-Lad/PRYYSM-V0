@@ -296,7 +296,7 @@ export function Admin({ session, onSessionRefresh }) {
 
     return (
         <div>
-            <div className="pg-hd"><span className="pg-eyebrow">SYSTEM</span><h1 className="pg-title">Admin Panel</h1></div>
+            <div className="pg-hd"><span className="pg-eyebrow">SYSTEM</span><h1 className="pg-title">Admin & Security</h1></div>
 
             {isSuperAdmin && (
                 <Tabs tabs={[{ id: "companies", label: "🏢 Companies" }, { id: "users", label: "👥 Global Users" }]} active={tab} onChange={setTab} />

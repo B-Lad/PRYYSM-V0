@@ -84,7 +84,6 @@ export function Flow({ lcProjects = [] }) {
                     })}
                 </div>
             )}
-        </div>
 
             {sel && (
                 <Modal title={`Project Detail — ${sel.id}`} onClose={() => setSelId(null)}>

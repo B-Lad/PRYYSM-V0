@@ -11,136 +11,170 @@ const MAT_UNIT = { FDM: "g", SLA: "ml", SLS: "g" };
 export function MaterialTab({ sel, groups, groupIndex, setGroupIndex, reviewData, updateReviewData, onStatusChange }) {
     const tech = sel?.tech || "FDM";
     const matUnit = MAT_UNIT[tech] || "g";
-
-    // Inventory filtered to this tech
     const inventory = MATERIALS_DATA.filter(m => m.tech === tech);
 
-    // Current group data
     const currentGroup = groups?.[groupIndex] || { qty: sel?.qty || 0, materials: [] };
-    const groupMaterials = currentGroup?.materials || [];
     const qty = parseInt(currentGroup.qty) || sel?.qty || 0;
+    
+    // Original requested materials from the print request
+    const requestedMaterials = currentGroup?.materials?.length > 0 
+        ? currentGroup.materials 
+        : [{ matName: sel?.material || "—", matType: tech, color: sel?.color, colorName: sel?.colorName, custom: false }];
 
-    // Previously confirmed data for this group
     const saved = reviewData?.[groupIndex]?.material || {};
-    const [confirmed, setConfirmed] = useState(saved.confirmedIds || {});
+    const [confirmed, setConfirmed] = useState(saved.confirmed || false);
+    
+    // Custom procurement requests
+    const [procReqs, setProcReqs] = useState(saved.procReqs || []);
+    const [reqForm, setReqForm] = useState({ name: "", qty: "", notes: "" });
 
-    useEffect(() => {
-        const saved = reviewData?.[groupIndex]?.material || {};
-        setConfirmed(saved.confirmedIds || {});
-    }, [groupIndex]);
+    function toggleConfirm() {
+        const next = !confirmed;
+        setConfirmed(next);
+        updateReviewData(groupIndex, "material", { confirmed: next, procReqs });
+        if (onStatusChange) onStatusChange(next ? "ok" : "warn");
+    }
 
-    // Build material rows from group's materials or fallback to project-level
-    const matRows = groupMaterials.length > 0
-        ? groupMaterials.map((mat, mi) => {
-            const name = mat.custom
-                ? (mat.customName || mat.matType || "Custom")
-                : (mat.matName || mat.matType || sel?.material || "—");
-            const gramsPerItem = mat.grams ? +mat.grams : null;
-            const totalQty = gramsPerItem ? gramsPerItem * qty : null;
-            return { key: `${groupIndex}-${mi}`, name, type: mat.matType, color: mat.color, colorName: mat.colorName, gramsPerItem, totalQty, custom: mat.custom };
-        })
-        : [{ key: `${groupIndex}-0`, name: sel?.material || "—", type: sel?.tech, gramsPerItem: null, totalQty: null, custom: false }];
+    function addProcReq() {
+        if (!reqForm.name) return;
+        const nextReqs = [...procReqs, { ...reqForm, id: Date.now() }];
+        setProcReqs(nextReqs);
+        setReqForm({ name: "", qty: "", notes: "" });
+        updateReviewData(groupIndex, "material", { confirmed, procReqs: nextReqs });
+    }
 
-    function findInventoryMatch(row) {
-        return inventory.find(inv =>
-            inv.name.toLowerCase().includes((row.name || "").toLowerCase().split(" ")[0]) ||
-            (row.name || "").toLowerCase().includes(inv.name.toLowerCase().split(" ")[0]) ||
-            inv.name.toLowerCase().includes((row.type || "").toLowerCase())
+    function removeProcReq(id) {
+        const nextReqs = procReqs.filter(r => r.id !== id);
+        setProcReqs(nextReqs);
+        updateReviewData(groupIndex, "material", { confirmed, procReqs: nextReqs });
+    }
+
+    function checkInventory(mat) {
+        const searchName = mat.custom ? mat.customName : mat.matName;
+        return inventory.find(inv => 
+            inv.name.toLowerCase().includes((searchName || "").toLowerCase().split(" ")[0])
         );
     }
 
-    function toggleConfirm(key) {
-        const next = { ...confirmed, [key]: !confirmed[key] };
-        setConfirmed(next);
-        const allDone = matRows.every(r => next[r.key]);
-        const anyDone = matRows.some(r => next[r.key]);
-        const status = allDone ? "ok" : anyDone ? "warn" : null;
-        updateReviewData(groupIndex, "material", { confirmedIds: next, confirmed: allDone, rows: matRows });
-        if (onStatusChange) onStatusChange(status);
-    }
-
-    const allConfirmed = matRows.length > 0 && matRows.every(r => confirmed[r.key]);
-
-    function stockBadge(inv) {
-        if (!inv) return <span className="b bidle" style={{ fontSize: 10 }}>Not in inventory</span>;
-        if (inv.low) return <span className="b bwarn" style={{ fontSize: 10 }}>⚠ Low Stock — {inv.qty} {inv.unit}</span>;
-        return <span className="b bsucc" style={{ fontSize: 10 }}>✓ In Stock — {inv.qty} {inv.unit}</span>;
-    }
-
     return (
-        <ReviewSection num="2" title="Material Availability" status={allConfirmed ? "ok" : Object.values(confirmed).some(Boolean) ? "warn" : null}>
+        <ReviewSection num="2" title="Material Availability" status={confirmed ? "ok" : "warn"}>
             <GroupSelector groups={groups} selectedIndex={groupIndex} onSelect={setGroupIndex} project={sel} />
 
-            {/* Group context header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, padding: 12, background: "var(--bg3)", borderRadius: "var(--r2)", border: "1px solid var(--border)" }}>
-                {sel?.imageUrl && <img src={sel.imageUrl} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} />}
-                <div>
-                    <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700 }}>{sel?.name}</div>
-                    <div className="tiny" style={{ color: "var(--text2)" }}>Group {groupIndex + 1} · <TB tech={tech} /> · ×{qty} pcs</div>
-                    {currentGroup.name && <div className="tiny" style={{ color: "var(--accent)", marginTop: 2 }}>{currentGroup.name}</div>}
+            {/* Top Section: Original Request & Stock Check */}
+            <div style={{ marginBottom: 24 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
+                    <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)" }}>
+                        Original Request — Group {groupIndex + 1}
+                    </div>
+                    <button className={`btn ${confirmed ? "btp" : "btg"} bts`} style={{ fontSize: 11 }} onClick={toggleConfirm}>
+                        {confirmed ? "✓ Materials Confirmed" : "Confirm Materials"}
+                    </button>
+                </div>
+                
+                <div className="card" style={{ boxShadow: "none" }}>
+                    <div className="tw">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Requested Material</th>
+                                    <th>Type</th>
+                                    <th>{matUnit} / item</th>
+                                    <th>Total {matUnit}</th>
+                                    <th>Inventory Check</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {requestedMaterials.map((mat, i) => {
+                                    const inv = checkInventory(mat);
+                                    const name = mat.custom ? (mat.customName || "Custom") : (mat.matName || "—");
+                                    const grams = mat.grams ? +mat.grams : 0;
+                                    const total = grams * qty;
+                                    
+                                    return (
+                                        <tr key={i}>
+                                            <td>
+                                                <div style={{ fontWeight: 600, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                                                    {mat.color && <div style={{ width: 12, height: 12, borderRadius: "50%", background: mat.color, border: "1px solid var(--border2)" }} />}
+                                                    {name}
+                                                </div>
+                                                {mat.colorName && <div className="tiny" style={{ color: "var(--text3)", marginTop: 2 }}>{mat.colorName}</div>}
+                                            </td>
+                                            <td><TB tech={mat.matType || tech} /></td>
+                                            <td className="mono" style={{ fontSize: 12 }}>{grams || "—"}</td>
+                                            <td className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{total || "—"}</td>
+                                            <td>
+                                                {inv ? (
+                                                    <span className="b bsucc" style={{ fontSize: 10 }}>✓ In Stock ({inv.qty}{inv.unit})</span>
+                                                ) : (
+                                                    <span className="b berr" style={{ fontSize: 10 }}>✕ Not Available</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
-            <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 8 }}>
-                Materials Required — Group {groupIndex + 1}
-            </div>
+            {/* Bottom Section: Procurement Requests */}
+            <div style={{ background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", padding: 16 }}>
+                <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 12 }}>
+                    Special Procurement Requests
+                </div>
+                <div className="tiny" style={{ color: "var(--text2)", marginBottom: 12 }}>
+                    If a required material is not available, submit a request to the inventory team below.
+                </div>
 
-            {/* Material confirmation table */}
-            <div className="card" style={{ boxShadow: "none", marginBottom: 16 }}>
-                <div className="tw">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style={{ width: 36 }}></th>
-                                <th>Material</th>
-                                <th>Type</th>
-                                <th>{matUnit} / item</th>
-                                <th>Total {matUnit}</th>
-                                <th>Inventory Match</th>
-                                <th>Stock Status</th>
-                                <th>Location</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {matRows.map(row => {
-                                const inv = findInventoryMatch(row);
-                                const isConf = !!confirmed[row.key];
-                                return (
-                                    <tr key={row.key} style={{ background: isConf ? "rgba(15,155,106,.04)" : "" }}>
-                                        <td>
-                                            <div onClick={() => toggleConfirm(row.key)}
-                                                style={{ width: 22, height: 22, borderRadius: 4, border: `2px solid ${isConf ? "var(--green)" : "var(--border2)"}`, background: isConf ? "var(--green)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                                                {isConf && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
-                                            </div>
+                {/* Request Form */}
+                <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                    <input className="fi" style={{ flex: 2, fontSize: 12 }} placeholder="Material Name & Details" 
+                        value={reqForm.name} onChange={e => setReqForm({...reqForm, name: e.target.value})} />
+                    <input type="number" className="fi" style={{ width: 100, fontSize: 12 }} placeholder={`Qty (${UNIT[tech]})`} 
+                        value={reqForm.qty} onChange={e => setReqForm({...reqForm, qty: e.target.value})} />
+                    <input className="fi" style={{ flex: 2, fontSize: 12 }} placeholder="Reason / Notes" 
+                        value={reqForm.notes} onChange={e => setReqForm({...reqForm, notes: e.target.value})} />
+                    <button className="btn btp bts" style={{ flexShrink: 0 }} onClick={addProcReq} disabled={!reqForm.name}>Send Request</button>
+                </div>
+
+                {/* Sent Requests List */}
+                {procReqs.length > 0 && (
+                    <div style={{ background: "var(--bg2)", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                            <thead>
+                                <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(245,158,11,.05)" }}>
+                                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, color: "var(--text3)", fontWeight: 600 }}>Requested Material</th>
+                                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, color: "var(--text3)", fontWeight: 600 }}>Qty</th>
+                                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, color: "var(--text3)", fontWeight: 600 }}>Notes</th>
+                                    <th style={{ padding: "8px 12px", textAlign: "center", fontSize: 10, color: "var(--text3)", fontWeight: 600 }}>Status</th>
+                                    <th style={{ padding: "8px 12px", width: 40 }}></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {procReqs.map(req => (
+                                    <tr key={req.id} style={{ borderBottom: "1px solid var(--border2)" }}>
+                                        <td style={{ padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>{req.name}</td>
+                                        <td className="mono" style={{ padding: "8px 12px", fontSize: 12 }}>{req.qty}</td>
+                                        <td style={{ padding: "8px 12px", fontSize: 11, color: "var(--text2)" }}>{req.notes || "—"}</td>
+                                        <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                                            <span className="b bta" style={{ fontSize: 9 }}>📦 Pending</span>
                                         </td>
-                                        <td>
-                                            <div style={{ fontWeight: 600, fontSize: 12 }}>{row.name}</div>
-                                            {row.colorName && <div className="tiny" style={{ color: "var(--text3)" }}>{row.colorName}</div>}
+                                        <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                                            <button onClick={() => removeProcReq(req.id)} style={{ background: "none", border: "none", color: "var(--red)", cursor: "pointer", fontSize: 14 }}>×</button>
                                         </td>
-                                        <td><TB tech={row.type || tech} /></td>
-                                        <td className="mono" style={{ fontSize: 12 }}>{row.gramsPerItem || "—"}</td>
-                                        <td className="mono" style={{ fontSize: 12, fontWeight: 600, color: row.totalQty ? "var(--text)" : "var(--text3)" }}>{row.totalQty || "—"}</td>
-                                        <td style={{ fontSize: 12 }}>{inv ? inv.name : <span style={{ color: "var(--text3)" }}>—</span>}</td>
-                                        <td>{stockBadge(inv)}</td>
-                                        <td className="tiny" style={{ color: "var(--text3)" }}>{inv?.location || "—"}</td>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
 
-            {allConfirmed && (
-                <div className="astrip success mb12">
-                    ✓ All materials for Group {groupIndex + 1} confirmed
-                </div>
-            )}
-
-            {/* Inventory reference panel */}
-            <div style={{ padding: "12px 14px", background: "var(--bg3)", borderRadius: "var(--r2)", border: "1px solid var(--border)" }}>
+            {/* Inventory Reference Panel */}
+            <div style={{ padding: "12px 14px", background: "var(--bg3)", borderRadius: "var(--r2)", border: "1px solid var(--border)", marginTop: 16 }}>
                 <div style={{ fontFamily: "var(--fd)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)", marginBottom: 8 }}>
-                    Full Inventory — {tech} Materials ({UNIT[tech]})
+                    Full Inventory — {tech} Materials
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6 }}>
                     {inventory.map(inv => (
@@ -150,9 +184,6 @@ export function MaterialTab({ sel, groups, groupIndex, setGroupIndex, reviewData
                                 <div style={{ fontSize: 11, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inv.name}</div>
                                 <div className="tiny" style={{ color: "var(--text3)" }}>{inv.qty} {inv.unit} · {inv.location}</div>
                             </div>
-                            <span className={`b ${inv.low ? "bwarn" : "bsucc"}`} style={{ fontSize: 9, flexShrink: 0 }}>
-                                {inv.low ? "Low" : "OK"}
-                            </span>
                         </div>
                     ))}
                     {inventory.length === 0 && <span className="tiny" style={{ color: "var(--text3)" }}>No inventory data for {tech}</span>}

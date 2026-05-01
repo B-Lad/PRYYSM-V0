@@ -342,7 +342,7 @@ function ReviewModal({ project, onClose, onAdvance }) {
     return (
         <Modal title={`AM Review — ${project.id}`} onClose={onClose} footer={(
             <><button className="btn btg bts" onClick={onClose}>Cancel</button>
-                <button className="btn btp bts" onClick={() => onAdvance(decision === "approve" ? "planning" : "submitted", notes || "Reviewed.")}>{decision === "approve" ? "Approve & Create WO" : "Submit Decision"}</button>
+                <button className="btn btp bts" onClick={() => onAdvance(decision === "approve" ? "review" : "submitted", notes || (decision === "approve" ? "Approved — forwarded to AM Review for full processing." : "Decision recorded."))}>{decision === "approve" ? "Approve → AM Review" : "Submit Decision"}</button>
             </>
         )}>
             <div style={{ background: "var(--bg3)", borderRadius: "var(--r2)", padding: 12, marginBottom: 12, border: "1px solid var(--border)" }}>
@@ -544,7 +544,10 @@ function ProjectLifecycle({ project, onAdvance, onBack, onEdit }) {
         return "sf";
     }
     function handleAction() {
-        const map = { submitted: "review", review: "planning", planning: "printing", printing: "postproc", postproc: "qa", qa: "handoff", handoff: "evaluation", evaluation: "closed" };
+        // "submitted" → open quick review modal to approve → sends to "review" stage (AM Review module)
+        // "review" stage is handled in the AM Review module — the coordinator does full material/spares/QC/WO there
+        // "planning" and beyond are handled by their respective modals here
+        const map = { submitted: "review", planning: "printing", printing: "postproc", postproc: "qa", qa: "handoff", handoff: "evaluation", evaluation: "closed" };
         if (map[project.stage]) setModal(map[project.stage]);
     }
     function advance(nextStage, note, extra = {}) {
@@ -552,14 +555,15 @@ function ProjectLifecycle({ project, onAdvance, onBack, onEdit }) {
         onAdvance(project.id, nextStage, note, extra);
     }
     const actionLabel = {
-        submitted: "Start AM Review", review: "Create Work Order", planning: "Start Print Job",
+        submitted: "Send to AM Review", review: "AM Review in Progress",
+        planning: "Start Print Job",
         printing: livePct >= 100 ? "Mark Print Complete" : "Print in progress...",
         postproc: "Post-Processing Checklist", qa: "Open QA Inspection",
         handoff: "Record Dept Handoff", evaluation: "Submit Evaluation",
     }[project.stage];
     const nextGuide = {
-        submitted: "AM Coordinator reviews the request, checks material stock and schedule, then approves to create a Work Order.",
-        review: "AM team creates a Work Order, assigns a machine and operator, and schedules the print slot.",
+        submitted: "AM Coordinator reviews the request in the AM Review module — checking materials, spares, QC requirements, and scheduling before creating a Work Order.",
+        review: "AM Review is in progress — the coordinator is checking materials, assigning machines, setting QC and post-processing requirements, then generating a Work Order.",
         planning: "Operator loads file, prepares machine, and starts the print job.",
         printing: "Print running live. When 100% complete, advance to post-processing.",
         postproc: "Parts move through washing, curing, depowdering, or support removal depending on tech.",

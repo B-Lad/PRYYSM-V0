@@ -158,6 +158,7 @@ class UserOut(BaseModel):
     id: UUID
     email: str
     full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     role: str
     is_active: bool = True
     tenant_id: Optional[str] = None
@@ -168,6 +169,12 @@ class UserUpdate(BaseModel):
     role: str
     is_active: bool
     allowed_tabs: Optional[List[str]] = None
+
+
+class UserUpdateMe(BaseModel):
+    full_name: str
+    email: str
+    avatar_url: Optional[str] = None
 
 
 class PasswordChange(BaseModel):
@@ -211,6 +218,7 @@ class SessionOut(BaseModel):
     id: str
     email: str
     full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     role: str
     tenant_id: Optional[str] = None
     is_active: bool = True

@@ -119,6 +119,20 @@ export function QCTab({ sel, groups, groupIndex, setGroupIndex, reviewData, upda
         });
     }
 
+    function copyToAll() {
+        if (!window.confirm("Copy these QC settings to ALL groups? This will overwrite existing group data.")) return;
+        const numGroups = groups?.length || 1;
+        for (let i = 0; i < numGroups; i++) {
+            updateReviewData(i, "qc", {
+                selected, customChecks, tolerance, notes, confirmed,
+                checksList: [
+                    ...checks.filter(c => selected[c.id]).map(c => ({ id: c.id, label: c.label, desc: c.desc, severity: c.severity })),
+                    ...customChecks,
+                ],
+            });
+        }
+    }
+
     const SEV_COLOR = { required: "var(--red)", recommended: "var(--yellow)", optional: "var(--text3)", custom: "var(--accent)" };
     const SEV_BG = { required: "rgba(239,68,68,.08)", recommended: "rgba(184,134,11,.08)", optional: "var(--bg3)", custom: "var(--adim)" };
 
@@ -126,27 +140,21 @@ export function QCTab({ sel, groups, groupIndex, setGroupIndex, reviewData, upda
         <ReviewSection num="6" title="QC Inspection Checks" status={confirmed ? "ok" : hasChecks ? "warn" : null}>
             <GroupSelector groups={groups} selectedIndex={groupIndex} onSelect={setGroupIndex} project={sel} />
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, padding: 12, background: "var(--bg3)", borderRadius: "var(--r2)", border: "1px solid var(--border)" }}>
-                <div>
-                    <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700 }}>{sel?.name} — Group {groupIndex + 1}</div>
-                    <div className="tiny" style={{ color: "var(--text2)" }}>{tech} · {currentGroup.name || `Group ${groupIndex + 1}`}</div>
-                    {sel?.requestNote && <div className="tiny" style={{ color: "var(--text3)", fontStyle: "italic", marginTop: 2 }}>Request note: {sel.requestNote}</div>}
-                </div>
-            </div>
-
-            {/* Required check progress */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <div style={{ fontFamily: "var(--fd)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--text3)" }}>
-                        {tech} QC Checks — {selectedChecks.length + customChecks.length} selected
+                        {tech} Checks — {selectedChecks.length + customChecks.length} selected
                     </div>
-                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: reqCount === totalRequired ? "var(--gdim)" : "var(--rdim)", color: reqCount === totalRequired ? "var(--green)" : "var(--red)", fontWeight: 700 }}>
-                        {reqCount}/{totalRequired} required ✓
+                    <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 10, background: reqCount === totalRequired ? "var(--gdim)" : "var(--rdim)", color: reqCount === totalRequired ? "var(--green)" : "var(--red)", fontWeight: 700 }}>
+                        {reqCount}/{totalRequired} REQ
                     </span>
                 </div>
-                <button className={`btn ${confirmed ? "btp" : hasChecks ? "btg" : "btg"} bts`} style={{ fontSize: 11 }} onClick={confirmChecks} disabled={!hasChecks}>
-                    {confirmed ? "✓ Confirmed — Send to QA" : "Confirm & Send to QA"}
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btg bts" style={{ fontSize: 10 }} onClick={copyToAll}>Apply to All Groups</button>
+                    <button className={`btn ${confirmed ? "btp" : hasChecks ? "btg" : "btg"} bts`} style={{ fontSize: 10 }} onClick={confirmChecks} disabled={!hasChecks}>
+                        {confirmed ? "✓ Confirmed" : "Confirm QC"}
+                    </button>
+                </div>
             </div>
 
             {/* Tolerance input */}

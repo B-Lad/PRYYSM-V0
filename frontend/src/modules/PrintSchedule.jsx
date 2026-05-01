@@ -31,11 +31,15 @@ export function PrintSchedule({ lcProjects = [], printerAssignments = {}, onPrin
     }));
 
     // Build allotted jobs from shared printerAssignments
-    const allottedJobs = Object.entries(printerAssignments).map(([projectId, assignment]) => {
+    const allottedJobs = Object.entries(printerAssignments).map(([key, assignment]) => {
+        // key might be `PRJ-XYZ` or `PRJ-XYZ-grp0`
+        const projectId = key.split("-grp")[0];
         const project = lcProjects.find(p => p.id === projectId) || assignment.projectData;
         const printerData = SCHEDULE_JOBS.find(p => p.printer === assignment.printer || p.printerCode === assignment.printer);
+        
         let startHour = 10;
         let startDate = new Date("2026-04-23");
+        
         const todayTomorrowMatch = assignment.startTime?.match(/(Today|Tomorrow)\s+(\d{2}):(\d{2})/);
         if (todayTomorrowMatch) {
             startHour = parseInt(todayTomorrowMatch[2]);
@@ -43,29 +47,36 @@ export function PrintSchedule({ lcProjects = [], printerAssignments = {}, onPrin
                 startDate = new Date("2026-04-24");
             }
         } else {
-            const customDateMatch = assignment.startTime?.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}):(\d{2})/);
+            const customDateMatch = assignment.startTime?.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}):(\d{2}))?/);
             if (customDateMatch) {
                 startDate = new Date(customDateMatch[1]);
-                startHour = parseInt(customDateMatch[2]);
+                startHour = customDateMatch[2] ? parseInt(customDateMatch[2]) : 9; // Default to 9 AM if no time provided
             }
         }
+        
         const durHrs = ((project?.estHrs ?? 4) + (project?.estMin ?? 0) / 60) * 1.05;
+        const mainMaterial = assignment.woData?.materials?.[0] 
+            ? (assignment.woData.materials[0].custom ? assignment.woData.materials[0].customName : assignment.woData.materials[0].matName)
+            : (project?.material || "");
+
         return {
-            id: `ALLOT-${projectId}`,
+            id: assignment.woData?.woId || `ALLOT-${key}`,
             printer: assignment.printer,
             printerCode: printerData?.printerCode || assignment.printer,
             job: project?.name || projectId,
-            projectNo: projectId,
+            projectNo: assignment.woData?.woId || projectId,
             start: startHour,
             startDate: startDate.toISOString().split("T")[0],
             dur: Math.ceil(durHrs),
             tech: project?.tech || "FDM",
             status: "scheduled",
             client: project?.owner || "",
-            material: project?.material || "",
+            material: mainMaterial,
             imageUrl: project?.imageUrl || "",
+            modelName: project?.fileName || project?.modelName || "Model.stl",
             isAllotted: true,
             confirmed: assignment.confirmed || false,
+            woData: assignment.woData
         };
     });
 

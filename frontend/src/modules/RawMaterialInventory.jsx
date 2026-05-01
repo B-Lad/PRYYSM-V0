@@ -111,7 +111,7 @@ function MatTabContent({ items, type, typeLabel, search, setSearch, brandFilter,
     );
 }
 
-export function RawMaterialInventory() {
+export function RawMaterialInventory({ printerAssignments = {} }) {
     const [tab, setTab] = useState("dashboard");
     const [matTab, setMatTab] = useState("filaments");
     const [filaments, setFilaments] = useState(RAW_FILAMENTS);
@@ -138,6 +138,12 @@ export function RawMaterialInventory() {
     const totalItems = all.length;
     const lowStock = all.filter(x => x.status === "low" || x.status === "critical");
     const criticalStock = all.filter(x => x.status === "critical");
+
+    const matProcReqs = Object.values(printerAssignments || {}).flatMap(a => 
+        (a.woData?.procReqs || [])
+            .filter(req => req.source === 'material')
+            .map(req => ({ ...req, project: a.projectData?.name || "Unknown Project", woId: a.woData?.woId }))
+    );
 
     function computeStatus(qty, minQty) { return qty === 0 ? "critical" : qty <= minQty ? "low" : "ok"; }
 
@@ -353,6 +359,34 @@ export function RawMaterialInventory() {
                     </div>
 
                     {/* Attention table */}
+                    {matProcReqs.length > 0 && (
+                        <div className="card mb16" style={{ border: "1px solid var(--accent)" }}>
+                            <div className="ch" style={{ background: "rgba(37,99,235,.05)", borderBottom: "1px solid rgba(37,99,235,.15)" }}>
+                                <span className="ct" style={{ color: "var(--accent)" }}>AM Review Procurement Requests</span>
+                                <span className="tiny" style={{ color: "var(--accent)" }}>Requested directly from production planning</span>
+                            </div>
+                            <div className="tw">
+                                <table>
+                                    <thead><tr><th>Project / WO</th><th>Material / Item Name</th><th>Requested Qty</th><th>Notes</th><th>Status</th></tr></thead>
+                                    <tbody>
+                                        {matProcReqs.map((req, i) => (
+                                            <tr key={i} style={{ background: "var(--bg1)" }}>
+                                                <td>
+                                                    <div style={{ fontWeight: 700 }}>{req.woId}</div>
+                                                    <div className="tiny dim">{req.project}</div>
+                                                </td>
+                                                <td style={{ fontWeight: 600, color: "var(--text)" }}>{req.name}</td>
+                                                <td className="mono" style={{ color: "var(--accent)", fontWeight: 600 }}>{req.qty}</td>
+                                                <td className="tiny">{req.notes || "—"}</td>
+                                                <td><span className="b bidle" style={{ fontSize: 9 }}>Pending Purchase</span></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
                     {lowStock.length > 0 && (
                         <div className="card">
                             <div className="ch">
