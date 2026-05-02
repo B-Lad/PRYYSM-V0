@@ -31,7 +31,6 @@ class Tenant(Base):
     slug = Column(Text, unique=True, nullable=False)
     settings = Column(JSONB, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Project(Base, TenantMixin):
