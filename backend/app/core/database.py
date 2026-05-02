@@ -2,14 +2,33 @@ from sqlalchemy import create_engine, Column, String, Boolean, DateTime, func, t
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.pool import NullPool
 import uuid
 from app.core.config import settings
 
 # 1. Fix the URL: Remove '+asyncpg' because we are switching to standard sync mode
 db_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
 
-# 2. Create standard engine
-engine = create_engine(db_url, pool_pre_ping=True)
+# 2. Create standard engine with connection pooling tuned for serverless/free tier
+# For Supabase free tier: keep pool small to avoid hitting connection limits
+pool_kwargs = {
+    "pool_pre_ping": True,
+    "pool_size": 3,           # Max 3 persistent connections
+    "max_overflow": 2,        # Allow 2 extra temporary connections
+    "pool_recycle": 300,      # Recycle connections every 5 min (Supabase timeout ~10min)
+    "pool_timeout": 10,       # Wait max 10s for a connection from pool
+    "connect_args": {
+        "connect_timeout": 10,  # TCP connect timeout
+        "options": "-c statement_timeout=30000",  # Query timeout 30s
+    } if "postgresql" in db_url else {},
+}
+
+# For Render + Supabase: if URL contains specific patterns, use NullPool to avoid idle timeouts
+if "render.com" in db_url.lower() or "supabase" in db_url.lower():
+    # Keep the tuned pool for better performance under load
+    pass
+
+engine = create_engine(db_url, **pool_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

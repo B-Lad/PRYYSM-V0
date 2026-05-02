@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.core.access import get_user_tabs, normalize_tenant_settings, set_user_tabs
+from app.core.cache import cache_response
 from app.core.database import get_db
 from app.core.dependencies import CurrentTenant
 from app.core.security import create_access_token, decode_access_token
@@ -190,6 +191,7 @@ def register(
 
 
 @router.get("/me", response_model=SessionOut)
+@cache_response(ttl_seconds=30)
 def get_current_user(ctx: CurrentTenant, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == ctx.user_id).first()
     if user is None:

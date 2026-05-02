@@ -8,6 +8,8 @@ import { api } from './services/api.js';
 import { Modal } from './components/atoms.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
 const Overview = lazy(() => import('./modules/Overview.jsx').then(m => ({ default: m.Overview })));
 const PrintRequests = lazy(() => import('./modules/PrintRequests.jsx').then(m => ({ default: m.PrintRequests })));
 const AMReview = lazy(() => import('./modules/AMReview/index.jsx').then(m => ({ default: m.AMReview })));
@@ -54,10 +56,15 @@ export default function App() {
     useRealtimeNotifications();
 
     useEffect(() => {
-        // Ping backend to wake up Render free tier before real requests
-        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}`.replace('/api/v1', '/health'), { mode: 'no-cors' })
-            .catch(() => {});
+        // Warm up Render free tier backend before real requests
+        warmBackend();
         bootstrap();
+
+        // Keep-alive ping every 10 min to prevent Render spin-down
+        const keepAlive = setInterval(() => {
+            warmBackend();
+        }, 10 * 60 * 1000);
+        return () => clearInterval(keepAlive);
     }, []);
 
     const allowedSections = session?.allowed_tabs?.length
@@ -143,6 +150,16 @@ export default function App() {
             });
         } catch (err) {
             console.warn("Backend not reachable.");
+        }
+    }
+
+    async function warmBackend() {
+        // Fire a lightweight ping to wake up Render free tier
+        const healthUrl = API_URL.replace('/api/v1', '/health');
+        try {
+            await fetch(healthUrl, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+        } catch (e) {
+            // Ignore errors — this is just a wake-up call
         }
     }
 

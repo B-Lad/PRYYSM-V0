@@ -1,20 +1,61 @@
 // Base API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
+// Simple in-memory cache for GET requests: { key: { data, timestamp } }
+const _apiCache = {};
+const CACHE_TTL_MS = 30_000; // 30 seconds stale-while-revalidate
+
 async function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function cacheKey(endpoint, token) {
+    return `${token || 'anon'}:${endpoint}`;
+}
+
+function getCached(key) {
+    const entry = _apiCache[key];
+    if (!entry) return null;
+    const age = Date.now() - entry.timestamp;
+    if (age > CACHE_TTL_MS * 2) {
+        // Hard expired (> 60s), remove
+        delete _apiCache[key];
+        return null;
+    }
+    return { data: entry.data, stale: age > CACHE_TTL_MS };
+}
+
+function setCached(key, data) {
+    _apiCache[key] = { data, timestamp: Date.now() };
 }
 
 // Helper for API requests
 async function fetchApi(endpoint, options = {}, retries = 2) {
     const url = `${API_URL}${endpoint}`;
+    const isGet = !options.method || options.method === 'GET';
+    const token = localStorage.getItem('access_token');
+    const key = cacheKey(endpoint, token);
+
+    // For GET requests: return cached data immediately if available, then refresh in background
+    if (isGet) {
+        const cached = getCached(key);
+        if (cached && !cached.stale) {
+            // Cache is fresh — return immediately without network call
+            return cached.data;
+        }
+        if (cached && cached.stale) {
+            // Cache is stale — return immediately, but trigger background refresh
+            refreshInBackground(url, options, token, key);
+            return cached.data;
+        }
+    }
+
     const config = {
         headers: { 'Content-Type': 'application/json', ...options.headers },
         ...options,
     };
 
     // Add Auth Token if available
-    const token = localStorage.getItem('access_token');
     if (token) config.headers['Authorization'] = `Bearer ${token}`;
 
     let lastError;
@@ -25,7 +66,14 @@ async function fetchApi(endpoint, options = {}, retries = 2) {
                 const errorBody = await response.json().catch(() => ({}));
                 throw new Error(errorBody.detail || `API Error: ${response.status} ${response.statusText}`);
             }
-            return response.json();
+            const data = await response.json();
+            if (isGet) {
+                setCached(key, data);
+            } else {
+                // Invalidate related cache on mutations
+                invalidateCache();
+            }
+            return data;
         } catch (err) {
             lastError = err;
             // Only retry on network errors (not 4xx/5xx HTTP errors)
@@ -38,6 +86,22 @@ async function fetchApi(endpoint, options = {}, retries = 2) {
     // eslint-disable-next-line no-console
     console.error('[API Debug] Origin:', window.location.origin, '| API URL:', API_URL, '| Error:', lastError);
     throw new Error(`Network error reaching API at ${API_URL}.\n\nCommon causes:\n1. CORS: Your domain (${window.location.origin}) is not in the backend allowlist.\n2. Render cold start: Backend is waking up — wait 30s and refresh.\n3. Wrong API URL: Check VITE_API_URL env var in Vercel.\n\nOpen browser Console (F12) for details.`);
+}
+
+function refreshInBackground(url, options, token, key) {
+    const config = {
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options,
+    };
+    if (token) config.headers['Authorization'] = `Bearer ${token}`;
+    fetch(url, config)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setCached(key, data); })
+        .catch(() => {});
+}
+
+function invalidateCache() {
+    Object.keys(_apiCache).forEach(k => delete _apiCache[k]);
 }
 
 export const api = {
