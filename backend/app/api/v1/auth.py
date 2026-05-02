@@ -195,7 +195,6 @@ def register(
 
 
 @router.get("/me", response_model=SessionOut)
-@cache_response(ttl_seconds=30)
 def get_current_user(ctx: CurrentTenant, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == ctx.user_id).first()
     if user is None:
