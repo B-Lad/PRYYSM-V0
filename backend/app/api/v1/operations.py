@@ -98,6 +98,14 @@ def get_work_orders(
 def create_wo(wo: WOCreate, ctx: CurrentTenant, db: Session = Depends(get_db)):
     ensure_tenant(ctx)
     ensure_section_access(db, ctx, ["projects", "schedule"])
+
+    # Verify project exists and belongs to tenant
+    project = db.query(Project).filter(
+        Project.id == wo.project_id, Project.tenant_id == ctx.tenant_id
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
     custom_id = f"WO-{str(uuid.uuid4())[:4].upper()}"
     db_wo = WorkOrder(
         id=str(uuid.uuid4()),
@@ -210,11 +218,21 @@ def get_ncrs(
 def create_ncr(ncr: NCRCreate, ctx: CurrentTenant, db: Session = Depends(get_db)):
     ensure_tenant(ctx)
     ensure_section_access(db, ctx, ["postposing"])
+
+    # Verify related work order exists and belongs to tenant
+    if ncr.related_wo_id:
+        wo = db.query(WorkOrder).filter(
+            WorkOrder.id == ncr.related_wo_id, WorkOrder.tenant_id == ctx.tenant_id
+        ).first()
+        if not wo:
+            raise HTTPException(status_code=404, detail="Work order not found")
+
     custom_id = f"NCR-{str(uuid.uuid4())[:4].upper()}"
     db_ncr = NCRReport(
         id=str(uuid.uuid4()),
         custom_id=custom_id,
         tenant_id=ctx.tenant_id,
+        related_wo_id=ncr.related_wo_id,
         description=ncr.description,
         root_cause_analysis=ncr.root_cause_analysis,
         corrective_action=ncr.corrective_action,

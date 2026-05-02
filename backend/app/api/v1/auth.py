@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -7,6 +7,7 @@ from app.core.access import get_user_tabs, normalize_tenant_settings, set_user_t
 from app.core.cache import cache_response
 from app.core.database import get_db
 from app.core.dependencies import CurrentTenant
+from app.core.limiter import limiter
 from app.core.security import create_access_token, decode_access_token
 from db.models import Tenant, User
 from schemas.schemas import (
@@ -90,7 +91,8 @@ def attach_tenant(user: User, tenant: Optional[Tenant]):
 
 
 @router.post("/login", response_model=Token)
-def login(req: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, req: UserLogin, db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == req.email).first()
         if not user or not verify_password(req.password, user.hashed_password):
@@ -126,7 +128,9 @@ def login(req: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.post("/register", response_model=UserOut)
+@limiter.limit("3/minute")
 def register(
+    request: Request,
     user_data: UserCreate,
     ctx: CurrentTenant,
     db: Session = Depends(get_db),
@@ -285,7 +289,9 @@ def update_user(
 
 
 @router.post("/change-password")
+@limiter.limit("5/minute")
 def change_password(
+    request: Request,
     body: PasswordChange,
     ctx: CurrentTenant,
     db: Session = Depends(get_db),
@@ -306,7 +312,9 @@ def change_password(
 
 
 @router.post("/users/{user_id}/set-password")
+@limiter.limit("5/minute")
 def set_user_password(
+    request: Request,
     user_id: str,
     body: PasswordSet,
     ctx: CurrentTenant,
@@ -343,8 +351,16 @@ def set_user_password(
 
 
 @router.get("/validate-token", response_model=SessionOut)
-def validate_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    payload = decode_access_token(token)
+@limiter.limit("30/minute")
+def validate_token(
+    request: Request,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+):
+    try:
+        payload = decode_access_token(token)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
     user = db.query(User).filter(User.id == payload.get("sub")).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")

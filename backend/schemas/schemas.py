@@ -1,8 +1,8 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
-from uuid import UUID
+from uuid import UUID as PyUUID
 
 
 # --- Enums ---
@@ -30,7 +30,7 @@ class ProjectCreate(BaseModel):
 class ProjectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID  # CHANGED from str
+    id: PyUUID  # CHANGED from str
     custom_id: str
     name: str
     dept: Optional[str]
@@ -49,11 +49,20 @@ class WOCreate(BaseModel):
     qty: int = 1
     due_date: Optional[str] = None
 
+    @field_validator("project_id")
+    @classmethod
+    def _validate_project_id(cls, v: str) -> str:
+        try:
+            PyUUID(v)
+        except ValueError:
+            raise ValueError("project_id must be a valid UUID")
+        return v
+
 
 class WOOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID  # CHANGED from str
+    id: PyUUID  # CHANGED from str
     custom_id: str
     project_id: str
     part_name: str
@@ -69,7 +78,7 @@ class WOOut(BaseModel):
 class MachineOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID  # CHANGED from str
+    id: PyUUID  # CHANGED from str
     custom_id: str
     name: str
     tech: Optional[str]
@@ -93,7 +102,7 @@ class MaterialInventoryCreate(BaseModel):
 class MaterialInventoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID  # CHANGED from str
+    id: PyUUID  # CHANGED from str
     custom_id: str
     name: str
     brand: Optional[str]
@@ -114,11 +123,22 @@ class NCRCreate(BaseModel):
     corrective_action: Optional[str] = None
     cost_impact: float = 0.0
 
+    @field_validator("related_wo_id")
+    @classmethod
+    def _validate_related_wo_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        try:
+            PyUUID(v)
+        except ValueError:
+            raise ValueError("related_wo_id must be a valid UUID")
+        return v
+
 
 class NCRBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID  # CHANGED from str
+    id: PyUUID  # CHANGED from str
     custom_id: str
     description: str
     status: str = "open"
@@ -155,7 +175,7 @@ class Token(BaseModel):
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
+    id: PyUUID
     email: str
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
