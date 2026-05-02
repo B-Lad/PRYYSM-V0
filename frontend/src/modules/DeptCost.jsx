@@ -5,9 +5,9 @@ import { TB, SB, DB, Tabs, Spark, Prog, BudgetBar } from '../components/atoms.js
 
 export function DeptCost({ lcProjects }) {
     const isDemo = useDemoMode();
-    const seedDepartments = isDemo ? seedDepartments : [];
-    const seedProjects = isDemo ? seedProjects : [];
-    const seedWos = isDemo ? seedWos : [];
+    const seedDepartments = isDemo ? DEPARTMENTS : [];
+    const seedProjects = isDemo ? PROJECTS : [];
+    const seedWos = isDemo ? WOS : [];
     const [selDept, setSelDept] = useState(null);
     const [tab, setTab] = useState("overview");
     return (

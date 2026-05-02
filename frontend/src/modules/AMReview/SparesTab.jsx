@@ -6,7 +6,7 @@ import { useDemoMode } from "../../hooks/useDemoMode";
 
 export function SparesTab({ sel, groups, groupIndex, setGroupIndex, reviewData, updateReviewData, onStatusChange }) {
     const isDemo = useDemoMode();
-    const seedSpareSeed = isDemo ? seedSpareSeed : [];
+    const seedSpareSeed = isDemo ? SPARE_SEED : [];
     const currentGroup = groups?.[groupIndex] || { qty: sel?.qty || 0 };
 
     const saved = reviewData?.[groupIndex]?.spares || {};

@@ -53,11 +53,11 @@ function ReviewSection({ num, title, status, children }) {
 
 export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignments, onPrinterAssignmentsChange }) {
     const isDemo = useDemoMode();
-    const seedScheduleJobs = isDemo ? seedScheduleJobs : [];
-    const seedRawFilaments = isDemo ? seedRawFilaments : [];
-    const seedRawResins = isDemo ? seedRawResins : [];
-    const seedRawPowders = isDemo ? seedRawPowders : [];
-    const seedSpareSeed = isDemo ? seedSpareSeed : [];
+    const seedScheduleJobs = isDemo ? SCHEDULE_JOBS : [];
+    const seedRawFilaments = isDemo ? RAW_FILAMENTS : [];
+    const seedRawResins = isDemo ? RAW_RESINS : [];
+    const seedRawPowders = isDemo ? RAW_POWDERS : [];
+    const seedSpareSeed = isDemo ? SPARE_SEED : [];
 
     const pending = lcProjects.filter(p => ["submitted", "review"].includes(p.stage));
     const reviewed = lcProjects.filter(p => !["submitted", "review"].includes(p.stage));

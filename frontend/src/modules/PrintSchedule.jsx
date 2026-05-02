@@ -19,8 +19,8 @@ const FLEET_STATUS_MAP = {
 
 export function PrintSchedule({ lcProjects = [], printerAssignments = {}, onPrinterAssignmentsChange }) {
     const isDemo = useDemoMode();
-    const seedScheduleJobs = isDemo ? seedScheduleJobs : [];
-    const seedConfirmQueue = isDemo ? seedConfirmQueue : [];
+    const seedScheduleJobs = isDemo ? SCHEDULE_JOBS : [];
+    const seedConfirmQueue = isDemo ? CONFIRM_QUEUE : [];
     const [view, setView] = useState("day");
     const [selPrinter, setSelPrinter] = useState("PRUSA01");
     const [techFilter, setTechFilter] = useState("all");

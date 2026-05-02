@@ -5,9 +5,9 @@ import { TB, SB, Tabs, Ring, Spark, Prog, AStrip } from '../components/atoms.jsx
 
 export function Performance({ machines }) {
     const isDemo = useDemoMode();
-    const seedQcData = isDemo ? seedQcData : [];
-    const seedDepartments = isDemo ? seedDepartments : [];
-    const seedWos = isDemo ? seedWos : [];
+    const seedQcData = isDemo ? QC_DATA : [];
+    const seedDepartments = isDemo ? DEPARTMENTS : [];
+    const seedWos = isDemo ? WOS : [];
     const [tab, setTab] = useState("oee");
     return (
         <div>

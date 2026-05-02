@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
-    seedScheduleJobs, ALLOT_QUEUE,
-    seedRawFilaments, seedRawResins, seedRawPowders,
-    SPARE_CATEGORIES, seedSpareSeed
+    SCHEDULE_JOBS, ALLOT_QUEUE,
+    RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS,
+    SPARE_CATEGORIES, SPARE_SEED
 } from '../data/seed.jsx';
 import { useDemoMode } from '../hooks/useDemoMode.js';
 import { MAT_CATALOG } from '../data/matCatalog.js';
@@ -77,11 +77,11 @@ function Phase({ title, subtitle, tabs, activeTab, onChangeTab, children, status
 
 export function AMReview2({ lcProjects, onLcProjectsChange, toast }) {
     const isDemo = useDemoMode();
-    const seedScheduleJobs = isDemo ? seedScheduleJobs : [];
-    const seedRawFilaments = isDemo ? seedRawFilaments : [];
-    const seedRawResins = isDemo ? seedRawResins : [];
-    const seedRawPowders = isDemo ? seedRawPowders : [];
-    const seedSpareSeed = isDemo ? seedSpareSeed : [];
+    const seedScheduleJobs = isDemo ? SCHEDULE_JOBS : [];
+    const seedRawFilaments = isDemo ? RAW_FILAMENTS : [];
+    const seedRawResins = isDemo ? RAW_RESINS : [];
+    const seedRawPowders = isDemo ? RAW_POWDERS : [];
+    const seedSpareSeed = isDemo ? SPARE_SEED : [];
     const pending = lcProjects.filter(p => ["submitted", "review"].includes(p.stage));
     const reviewed = lcProjects.filter(p => !["submitted", "review"].includes(p.stage));
 

@@ -21,7 +21,7 @@ export function JobAllotment({
     setTabStatus,
 }) {
     const isDemo = useDemoMode();
-    const seedScheduleJobs = isDemo ? seedScheduleJobs : [];
+    const seedScheduleJobs = isDemo ? SCHEDULE_JOBS : [];
     const [ganttFilter, setGanttFilter] = useState("all");
     const [ganttDate, setGanttDate] = useState(new Date("2026-04-23"));
     const [ganttView, setGanttView] = useState("day");

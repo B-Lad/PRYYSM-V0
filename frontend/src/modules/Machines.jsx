@@ -6,8 +6,8 @@ import { TECH_C, DT_CODES } from '../data/constants.js';
 
 export function Machines({ machines }) {
     const isDemo = useDemoMode();
-    const seedWos = isDemo ? seedWos : [];
-    const seedWcs = isDemo ? seedWcs : [];
+    const seedWos = isDemo ? WOS : [];
+    const seedWcs = isDemo ? WCS : [];
     const [sel, setSel] = useState(null);
     const [showDT, setShowDT] = useState(false);
     const m = sel ? machines.find(x => x.id === sel) : null;
