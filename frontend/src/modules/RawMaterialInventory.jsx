@@ -285,7 +285,7 @@ export function RawMaterialInventory({ printerAssignments = {} }) {
                     <div className="fg"><label className="fl">Code</label><input className="fi" placeholder="A00042" value={form.code || ""} onChange={e => sf("code")(e.target.value)} /></div>
                 </div>
                 <div className="frow">
-                    <div className="fg"><label className="fl">Total Volume (ml)</label><input type="number" className="fi" defaultValue={1000} /></div>
+                    <div className="fg"><label className="fl">Total Weight (g)</label><input type="number" className="fi" defaultValue={1000} /></div>
                     <div className="fg"><label className="fl">Min Order Qty</label><input type="number" className="fi" value={form.reorder} onChange={e => sf("reorder")(+e.target.value)} /></div>
                 </div>
                 <div className="frow">
@@ -313,7 +313,7 @@ export function RawMaterialInventory({ printerAssignments = {} }) {
                     <div className="fg"><label className="fl">Min Order Qty</label><input type="number" className="fi" value={form.minQty} onChange={e => sf("minQty")(+e.target.value)} /></div>
                 </div>
                 <div className="frow">
-                    <div className="fg"><label className="fl">Type Weight (g)</label><input type="number" className="fi" defaultValue={1000} /></div>
+                    <div className="fg"><label className="fl">Type Volume (ml)</label><input type="number" className="fi" defaultValue={1000} /></div>
                     <div className="fg"><label className="fl">Number of Bottles</label><input type="number" className="fi" value={form.qty} onChange={e => sf("qty")(+e.target.value)} /></div>
                 </div>
             </>

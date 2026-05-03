@@ -3,6 +3,7 @@ import { TB, SB, Modal } from "../../components/atoms";
 import { ScheduleGantt } from "../../components/ScheduleGantt";
 import { SCHEDULE_JOBS } from "../../data/seed";
 import { useDemoMode } from "../../hooks/useDemoMode";
+import { usePrinterFleet } from "../../hooks/usePrinterFleet";
 
 function Prog({ pct, h = 6 }) {
     return (
@@ -21,7 +22,9 @@ export function JobAllotment({
     setTabStatus,
 }) {
     const isDemo = useDemoMode();
-    const seedScheduleJobs = isDemo ? SCHEDULE_JOBS : [];
+    const { printers: sharedPrinters, scheduleJobs: sharedScheduleJobs } = usePrinterFleet();
+    const allPrinters = isDemo ? SCHEDULE_JOBS : (sharedScheduleJobs.length > 0 ? sharedScheduleJobs : sharedPrinters.map(p => ({ id: p.id, printer: p.name, printerCode: p.code, job: p.job, tech: p.type, status: p.status })));
+    const seedScheduleJobs = allPrinters;
     const [ganttFilter, setGanttFilter] = useState("all");
     const [ganttDate, setGanttDate] = useState(new Date("2026-04-23"));
     const [ganttView, setGanttView] = useState("day");

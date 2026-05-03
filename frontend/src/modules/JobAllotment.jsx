@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { SCHEDULE_JOBS, ALLOT_QUEUE } from '../data/seed.jsx';
 import { useDemoMode } from '../hooks/useDemoMode.js';
+import { usePrinterFleet } from '../hooks/usePrinterFleet.js';
 import { TB, SB, Prog, Modal } from '../components/atoms.jsx';
 
 export function JobAllotment() {
     const isDemo = useDemoMode();
+    const { printers: sharedPrinters } = usePrinterFleet();
     const [techFilter, setTechFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
     const [showAutoConfirm, setShowAutoConfirm] = useState(null);
@@ -14,7 +16,8 @@ export function JobAllotment() {
     const [queue, setQueue] = useState(isDemo ? ALLOT_QUEUE : []);
     const [newProj, setNewProj] = useState({ name: "", qty: 1, deadline: new Date().toISOString().split("T")[0], tech: "FDM", priority: "Medium" });
 
-    const printerGrid = (isDemo ? SCHEDULE_JOBS : []).slice(0, 8);
+    const allPrinters = isDemo ? SCHEDULE_JOBS : sharedPrinters.map(p => ({ id: p.id, printer: p.name, printerCode: p.code, job: p.job, tech: p.type, status: p.status }));
+    const printerGrid = allPrinters.slice(0, 8);
     const priorityBadge = { low: "bnorm", medium: "bwait", high: "burgent" };
     const priorityColor = { low: "var(--text3)", medium: "var(--yellow)", high: "var(--red)" };
 

@@ -5,6 +5,7 @@ import {
     SPARE_CATEGORIES, SPARE_SEED
 } from '../data/seed.jsx';
 import { useDemoMode } from '../hooks/useDemoMode.js';
+import { usePrinterFleet } from '../hooks/usePrinterFleet.js';
 import { MAT_CATALOG } from '../data/matCatalog.js';
 import { TB, SB, DB, Modal, Prog, AStrip, Tabs } from '../components/atoms.jsx';
 import { ScheduleGantt } from '../components/ScheduleGantt.jsx';
@@ -53,7 +54,8 @@ function ReviewSection({ num, title, status, children }) {
 
 export function AMReview({ lcProjects, onLcProjectsChange, toast, printerAssignments, onPrinterAssignmentsChange }) {
     const isDemo = useDemoMode();
-    const seedScheduleJobs = isDemo ? SCHEDULE_JOBS : [];
+    const { printers: sharedPrinters, scheduleJobs: sharedScheduleJobs } = usePrinterFleet();
+    const seedScheduleJobs = isDemo ? SCHEDULE_JOBS : (sharedScheduleJobs.length > 0 ? sharedScheduleJobs : sharedPrinters.map(p => ({ id: p.id, printer: p.name, printerCode: p.code, job: p.job, tech: p.type, status: p.status })));
     const seedRawFilaments = isDemo ? RAW_FILAMENTS : [];
     const seedRawResins = isDemo ? RAW_RESINS : [];
     const seedRawPowders = isDemo ? RAW_POWDERS : [];

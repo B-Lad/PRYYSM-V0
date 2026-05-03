@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { SCHEDULE_JOBS, CONFIRM_QUEUE } from '../data/seed.jsx';
 import { useDemoMode } from '../hooks/useDemoMode.js';
+import { usePrinterFleet } from '../hooks/usePrinterFleet.js';
 import { TB, SB, Prog } from '../components/atoms.jsx';
 import { ScheduleGantt } from '../components/ScheduleGantt.jsx';
 import { Printer, AlertTriangle, CheckCircle, Clock, Settings, Download, X, MapPin, User, Layers, Wrench, FileBox, Image, AlertCircle } from 'lucide-react';
 
-const FLEET_STATUS_MAP = {
+const FLEET_STATUS_MAP = (isDemo ? {
     "PRUSA01": { status: "printing", location: "Lab 1" },
     "ENDER01": { status: "idle", location: "Lab 2" },
     "ULT01": { status: "printing", location: "Design Studio" },
@@ -15,14 +16,16 @@ const FLEET_STATUS_MAP = {
     "EOS01": { status: "idle", location: "Lab 2" },
     "HPJF01": { status: "maintenance", location: "Prototyping Center" },
     "ANYC02": { status: "idle", location: "Design Studio" },
-};
+} : sharedPrinters.reduce((acc, p) => ({ ...acc, [p.code]: { status: p.status, location: p.location } }), {}));
 
 export function PrintSchedule({ lcProjects = [], printerAssignments = {}, onPrinterAssignmentsChange }) {
     const isDemo = useDemoMode();
-    const seedScheduleJobs = isDemo ? SCHEDULE_JOBS : [];
+    const { printers: sharedPrinters, scheduleJobs: sharedScheduleJobs } = usePrinterFleet();
+    const allPrinters = isDemo ? SCHEDULE_JOBS : (sharedScheduleJobs.length > 0 ? sharedScheduleJobs : sharedPrinters.map(p => ({ id: p.id, printer: p.name, printerCode: p.code, job: p.job, tech: p.type, status: p.status })));
+    const seedScheduleJobs = allPrinters;
     const seedConfirmQueue = isDemo ? CONFIRM_QUEUE : [];
     const [view, setView] = useState("day");
-    const [selPrinter, setSelPrinter] = useState("PRUSA01");
+    const [selPrinter, setSelPrinter] = useState(sharedPrinters.length > 0 ? sharedPrinters[0].code : "PRUSA01");
     const [techFilter, setTechFilter] = useState("all");
     const [queue, setQueue] = useState(seedConfirmQueue);
     const [currentDate, setCurrentDate] = useState(new Date("2026-04-23"));

@@ -5,10 +5,11 @@ import { useLive } from './hooks/useLive.js';
 import { useRealtimeNotifications } from './hooks/useNotifications.js';
 import { DemoModeContext } from './hooks/useDemoMode.js';
 import { MaterialsContext } from './hooks/useMaterials.js';
+import { PrinterFleetContext } from './hooks/usePrinterFleet.js';
 import { api } from './services/api.js';
 import { Modal } from './components/atoms.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
-import { RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS } from './data/seed.jsx';
+import { RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS, FLEET_DATA, SCHEDULE_JOBS, CONFIRM_QUEUE } from './data/seed.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
@@ -57,6 +58,10 @@ export default function App() {
     const [sharedResins, setSharedResins] = useState([]);
     const [sharedPowders, setSharedPowders] = useState([]);
     const materialsValue = { filaments: sharedFilaments, resins: sharedResins, powders: sharedPowders, setFilaments: setSharedFilaments, setResins: setSharedResins, setPowders: setSharedPowders };
+    const [sharedPrinters, setSharedPrinters] = useState([]);
+    const [sharedScheduleJobs, setSharedScheduleJobs] = useState([]);
+    const [sharedConfirmQueue, setSharedConfirmQueue] = useState([]);
+    const printerFleetValue = { printers: sharedPrinters, scheduleJobs: sharedScheduleJobs, confirmQueue: sharedConfirmQueue, setPrinters: setSharedPrinters, setScheduleJobs: setSharedScheduleJobs, setConfirmQueue: setSharedConfirmQueue };
     const machines = useLive();
 
     useRealtimeNotifications();
@@ -336,7 +341,8 @@ export default function App() {
         <ErrorBoundary>
             <DemoModeContext.Provider value={session?.demo_mode === true}>
                 <MaterialsContext.Provider value={materialsValue}>
-                    <style>{CSS}</style>
+                    <PrinterFleetContext.Provider value={printerFleetValue}>
+                        <style>{CSS}</style>
                     <div className="toast-wrap">
                         {toasts.map(t => <div key={t.id} className={`toast t${t.type}`}><span>{t.type === "s" ? "✓" : t.type === "e" ? "✗" : "ℹ"}</span>{t.msg}</div>)}
                     </div>
@@ -437,8 +443,9 @@ export default function App() {
                         </div>
                     </Modal>
 )}
-            </MaterialsContext.Provider>
-        </DemoModeContext.Provider>
-    </ErrorBoundary>
-);
+                    </PrinterFleetContext.Provider>
+                </MaterialsContext.Provider>
+            </DemoModeContext.Provider>
+        </ErrorBoundary>
+    );
 }

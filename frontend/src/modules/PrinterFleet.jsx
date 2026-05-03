@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { TB, SB, Ring, Spark, Prog, AStrip, Modal, Tabs } from '../components/atoms.jsx';
 import { useDemoMode } from '../hooks/useDemoMode.js';
+import { usePrinterFleet } from '../hooks/usePrinterFleet.js';
 
 const FLEET_DATA = [
     {
@@ -146,10 +147,11 @@ export function PrinterDetailPanel({ dp, CYCLE, SC, SB, SL, age, onClose, onMain
 
 export function PrinterFleet() {
     const isDemo = useDemoMode();
+    const { printers: sharedPrinters, setPrinters: setSharedPrinters } = usePrinterFleet();
     const [tab, setTab] = useState("fleet");
     const [techFilter, setTechFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
-    const [printers, setPrinters] = useState(isDemo ? FLEET_DATA : []);
+    const [printers, setPrinters] = useState(() => isDemo ? FLEET_DATA : (sharedPrinters.length > 0 ? sharedPrinters : []));
     const [showAdd, setShowAdd] = useState(false);
     const [confirmRemove, setConfirmRemove] = useState(null);
     const [confirmRemove2, setConfirmRemove2] = useState(null);
@@ -183,7 +185,9 @@ export function PrinterFleet() {
 
     function addPrinter() {
         const np = { id: "PF" + (printers.length + 10), name: form.name, code: form.code, model: form.model, location: form.location, type: form.type, status: "idle", job: null, pct: 0, init: form.init, maintLog: [] };
-        setPrinters(p => [...p, np]); setShowAdd(false);
+        setPrinters(p => [...p, np]);
+        if (!isDemo) setSharedPrinters(p => [...p, np]);
+        setShowAdd(false);
         setForm({ name: "", model: "", code: "", location: "Lab 1", type: "FDM", capacity: "Standard", material: "PLA", init: new Date().toISOString().split("T")[0] });
     }
 

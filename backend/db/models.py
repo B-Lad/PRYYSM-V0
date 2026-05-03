@@ -146,6 +146,22 @@ class NCRReport(Base, TenantMixin):
     resolved_at = Column(DateTime(timezone=True))
 
 
+class SparePart(Base, TenantMixin):
+    __tablename__ = "spare_parts_inventory"
+    id = Column(
+        UUID(as_uuid=False), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    custom_id = Column(Text, unique=True)
+    name = Column(Text, nullable=False)
+    category = Column(Text)
+    description = Column(Text)
+    quantity = Column(Integer, default=0)
+    min_quantity = Column(Integer, default=2)
+    location = Column(Text)
+    status = Column(Text)  # computed column: 'ok', 'low', 'critical'
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class User(Base, TenantMixin):
     __tablename__ = "users"
     id = Column(
