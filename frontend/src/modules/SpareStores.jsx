@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Modal } from '../components/atoms.jsx';
-import { ImageUpload } from '../components/ImageUpload.jsx';
 import { ReorderModal } from '../components/ReorderModal.jsx';
 import { useDemoMode } from '../hooks/useDemoMode.js';
 
@@ -73,7 +72,25 @@ function SpareFormModal({ title, data, setData, onSave, onClose }) {
                     </div>
                     <div className="mb12">
                         <label className="fl">Item Image</label>
-                        <ImageUpload onUpload={(url) => setData(p => ({ ...p, img: url }))} />
+                        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                            {data.img ? (
+                                <img src={data.img} alt={data.name} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: "var(--r2)", border: "1px solid var(--border)" }} />
+                            ) : (
+                                <div style={{ width: 80, height: 80, background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>📷</div>
+                            )}
+                            <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                                <div style={{ width: 80, height: 80, borderRadius: "var(--r2)", border: "2px dashed var(--border2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, background: "var(--bg3)" }}>📷</div>
+                                <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        const reader = new FileReader();
+                                        reader.onload = (ev) => setData(p => ({ ...p, img: ev.target.result }));
+                                        reader.readAsDataURL(file);
+                                    }
+                                }} />
+                                <span style={{ fontSize: 11, color: "var(--accent)" }}>Choose Image</span>
+                            </label>
+                        </div>
                     </div>
                     <div className="frow">
                         <div className="fg"><label className="fl">Quantity *</label><input className="fi" type="number" min={0} value={data.qty} onChange={e => setData(p => ({ ...p, qty: +e.target.value }))} /></div>
@@ -378,7 +395,18 @@ export function SpareStores({ printerAssignments = {} }) {
                                 ) : (
                                     <div style={{ width: 80, height: 80, background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: "var(--r2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{SPARE_CATEGORIES.find(c => c.id === form.cat)?.icon || "◇"}</div>
                                 )}
-                                <ImageUpload onUpload={(url) => sf("img")(url)} />
+                                <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                                    <div style={{ width: 80, height: 80, borderRadius: "var(--r2)", border: "2px dashed var(--border2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, background: "var(--bg3)" }}>📷</div>
+                                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onload = (ev) => sf("img")(ev.target.result);
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }} />
+                                    <span style={{ fontSize: 11, color: "var(--accent)" }}>Choose Image</span>
+                                </label>
                             </div>
                         </div>
                         <div className="frow">
