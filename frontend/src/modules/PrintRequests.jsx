@@ -2,13 +2,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { LIFECYCLE_STAGES, lcPct, lcIdx } from '../data/seed.jsx';
 import { useDemoMode } from '../hooks/useDemoMode.js';
+import { useMaterials } from '../hooks/useMaterials.js';
 import { TB, SB, DB, Modal, Tabs, Prog, AStrip, LiveBadge } from '../components/atoms.jsx';
 import { DEPT_CLS, DEPT_C } from '../data/constants.js';
 import { MAT_CATALOG, BLANK_MAT, BLANK_GROUP } from '../data/matCatalog.js';
 import { api } from '../services/api.js';
 import { ImageUpload } from '../components/ImageUpload.jsx';
-
-const EMPTY_CATALOG = { types: [], finishes: [], colors: {} };
 
 export function ColorPicker({ cat, mat, gi, mi, setMat }) {
     const colorOpts = (cat.colors[`${mat.matType}|${mat.finish}`] || []);
@@ -38,12 +37,38 @@ export function ColorPicker({ cat, mat, gi, mi, setMat }) {
 const WIZ_LABELS = ["General Info", "Items & Tech", "Files & Notes", "Review"];
 export function NewRequestWizard({ onClose, onCreate }) {
     const isDemo = useDemoMode();
+    const { filaments, resins, powders } = useMaterials();
     const [step, setStep] = useState(0);
     const [f, setF] = useState({ name: "", dept: "", projCode: "", owner: "", priority: "normal", due: "", description: "", tech: "FDM", estHrs: 0, estMin: 0, groups: [BLANK_GROUP()], notes: "", imageUrl: "", modelName: "" });
     const set = (k, v) => setF(p => ({ ...p, [k]: v }));
     const canNext = [f.name.trim() && f.owner.trim() && f.due, true, true, true][step];
     const u = f.tech === "SLA" ? "ml" : "g";
     const uFull = f.tech === "SLA" ? "milliliters" : "grams";
+
+    function buildDynamicCatalog(tech) {
+        if (isDemo) return MAT_CATALOG[tech] || MAT_CATALOG.FDM;
+        const types = new Set();
+        const finishes = new Set();
+        const colors = {};
+        let items = [];
+        if (tech === "FDM") items = filaments;
+        else if (tech === "SLA") items = resins;
+        else if (tech === "SLS") items = powders;
+        items.forEach(item => {
+            const matType = item.type || item.material || "Standard";
+            const finish = item.finish || "Matte";
+            types.add(matType);
+            finishes.add(finish);
+            const key = `${matType}|${finish}`;
+            if (!colors[key]) colors[key] = [];
+            colors[key].push({ name: item.name, hex: item.color || "#888888", stock: item.qty || 0, unit: item.unit || "units" });
+        });
+        return {
+            types: [...types],
+            finishes: [...finishes],
+            colors,
+        };
+    }
 
     // Group ops
     const addGroup = () => setF(p => ({ ...p, groups: [...p.groups, BLANK_GROUP()] }));
@@ -166,7 +191,7 @@ export function NewRequestWizard({ onClose, onCreate }) {
                     </div>
 
                     {f.groups.map((grp, gi) => {
-                        const cat = isDemo ? (MAT_CATALOG[f.tech] || MAT_CATALOG.FDM) : EMPTY_CATALOG;
+                        const cat = isDemo ? (MAT_CATALOG[f.tech] || MAT_CATALOG.FDM) : buildDynamicCatalog(f.tech);
                         return (
                             <div key={gi} style={{ border: "1px solid var(--border2)", borderRadius: "var(--r2)", marginBottom: 12, overflow: "hidden" }}>
                                 {/* Group header */}
@@ -844,7 +869,7 @@ function EditWizard({ proj, onClose, onSave }) {
                         <span className="tiny">Total Groups: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{f.groups.length}</span></span>
                     </div>
                     {f.groups.map((grp, gi) => {
-                        const cat = isDemo ? (MAT_CATALOG[f.tech] || MAT_CATALOG.FDM) : EMPTY_CATALOG;
+                        const cat = isDemo ? (MAT_CATALOG[f.tech] || MAT_CATALOG.FDM) : buildDynamicCatalog(f.tech);
                         return (
                             <div key={gi} style={{ border: "1px solid var(--border2)", borderRadius: "var(--r2)", marginBottom: 12, overflow: "hidden" }}>
                                 <div style={{ background: "var(--bg3)", padding: "8px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS } from '../data/seed.jsx';
 import { useDemoMode } from '../hooks/useDemoMode.js';
+import { useMaterials } from '../hooks/useMaterials.js';
 import { Modal } from '../components/atoms.jsx';
 import { ReorderModal } from '../components/ReorderModal.jsx';
 
@@ -114,11 +115,12 @@ function MatTabContent({ items, type, typeLabel, search, setSearch, brandFilter,
 
 export function RawMaterialInventory({ printerAssignments = {} }) {
     const isDemo = useDemoMode();
+    const { filaments: sharedFilaments, resins: sharedResins, powders: sharedPowders, setFilaments: setSharedFilaments, setResins: setSharedResins, setPowders: setSharedPowders } = useMaterials();
     const [tab, setTab] = useState("dashboard");
     const [matTab, setMatTab] = useState("filaments");
-    const [filaments, setFilaments] = useState(isDemo ? RAW_FILAMENTS : []);
-    const [resins, setResins] = useState(isDemo ? RAW_RESINS : []);
-    const [powders, setPowders] = useState(isDemo ? RAW_POWDERS : []);
+    const [filaments, setFilaments] = useState(() => isDemo ? RAW_FILAMENTS : (sharedFilaments.length > 0 ? sharedFilaments : []));
+    const [resins, setResins] = useState(() => isDemo ? RAW_RESINS : (sharedResins.length > 0 ? sharedResins : []));
+    const [powders, setPowders] = useState(() => isDemo ? RAW_POWDERS : (sharedPowders.length > 0 ? sharedPowders : []));
     const [showAdd, setShowAdd] = useState(false);
     const [editItem, setEditItem] = useState(null); // {type,item}
     const [search, setSearch] = useState("");
@@ -223,9 +225,19 @@ export function RawMaterialInventory({ printerAssignments = {} }) {
 
     function saveNew() {
         const status = computeStatus(form.qty, form.minQty);
-        if (matTab === "filaments") setFilaments(p => [...p, { ...form, id: "RF" + (p.length + 10), status }]);
-        else if (matTab === "resins") setResins(p => [...p, { ...form, id: "RR" + (p.length + 10), status, material: form.type }]);
-        else setPowders(p => [...p, { ...form, id: "RP" + (p.length + 10), status }]);
+        if (matTab === "filaments") {
+            const newItem = { ...form, id: "RF" + (filaments.length + 10), status };
+            setFilaments(p => [...p, newItem]);
+            if (!isDemo) setSharedFilaments(p => [...p, newItem]);
+        } else if (matTab === "resins") {
+            const newItem = { ...form, id: "RR" + (resins.length + 10), status, material: form.type };
+            setResins(p => [...p, newItem]);
+            if (!isDemo) setSharedResins(p => [...p, newItem]);
+        } else {
+            const newItem = { ...form, id: "RP" + (powders.length + 10), status };
+            setPowders(p => [...p, newItem]);
+            if (!isDemo) setSharedPowders(p => [...p, newItem]);
+        }
         setShowAdd(false);
     }
 
@@ -234,9 +246,16 @@ export function RawMaterialInventory({ printerAssignments = {} }) {
         const { type, item } = editItem;
         const status = computeStatus(item.qty, item.minQty || item.minQty);
         const updated = { ...item, status };
-        if (type === "filament") setFilaments(p => p.map(x => x.id === item.id ? updated : x));
-        else if (type === "resin") setResins(p => p.map(x => x.id === item.id ? updated : x));
-        else setPowders(p => p.map(x => x.id === item.id ? updated : x));
+        if (type === "filament") {
+            setFilaments(p => p.map(x => x.id === item.id ? updated : x));
+            if (!isDemo) setSharedFilaments(p => p.map(x => x.id === item.id ? updated : x));
+        } else if (type === "resin") {
+            setResins(p => p.map(x => x.id === item.id ? updated : x));
+            if (!isDemo) setSharedResins(p => p.map(x => x.id === item.id ? updated : x));
+        } else {
+            setPowders(p => p.map(x => x.id === item.id ? updated : x));
+            if (!isDemo) setSharedPowders(p => p.map(x => x.id === item.id ? updated : x));
+        }
         setEditItem(null);
     }
 
@@ -259,7 +278,7 @@ export function RawMaterialInventory({ printerAssignments = {} }) {
                 <div className="frow"><div className="fg"><label className="fl">Name</label><input className="fi" placeholder="e.g. PLA Black" value={form.name} onChange={e => sf("name")(e.target.value)} /></div></div>
                 <div className="frow">
                     <div className="fg"><label className="fl">Brand</label><input className="fi" value={form.brand || ""} onChange={e => sf("brand")(e.target.value)} /></div>
-                    <div className="fg"><label className="fl">Type</label><select className="fsel" value={form.type} onChange={e => sf("type")(e.target.value)}><option>Standard</option><option>Engineering</option><option>Flexible</option><option>Silk</option></select></div>
+                    <div className="fg"><label className="fl">Type</label><input className="fi" placeholder="e.g. PLA, ABS, PETG" value={form.type} onChange={e => sf("type")(e.target.value)} /></div>
                 </div>
                 <div className="frow">
                     <div className="fg"><label className="fl">Color</label><input type="color" className="fi" style={{ padding: "4px 8px", height: 38 }} value={form.color} onChange={e => sf("color")(e.target.value)} /></div>
@@ -283,7 +302,7 @@ export function RawMaterialInventory({ printerAssignments = {} }) {
                 <div className="frow"><div className="fg"><label className="fl">Name</label><input className="fi" placeholder="e.g. Standard Grey" value={form.name} onChange={e => sf("name")(e.target.value)} /></div></div>
                 <div className="frow">
                     <div className="fg"><label className="fl">Brand</label><input className="fi" value={form.brand || ""} onChange={e => sf("brand")(e.target.value)} /></div>
-                    <div className="fg"><label className="fl">Material</label><select className="fsel" value={form.type} onChange={e => sf("type")(e.target.value)}><option>ABS-Like</option><option>Flexible</option><option>Tough 2000</option><option>Model V2</option><option>Standard</option><option>Castable</option></select></div>
+                    <div className="fg"><label className="fl">Material</label><input className="fi" placeholder="e.g. ABS-Like, Flexible, Tough" value={form.type} onChange={e => sf("type")(e.target.value)} /></div>
                 </div>
                 <div className="frow">
                     <div className="fg"><label className="fl">Color</label><input type="color" className="fi" style={{ padding: "4px 8px", height: 38 }} value={form.color} onChange={e => sf("color")(e.target.value)} /></div>
@@ -304,7 +323,7 @@ export function RawMaterialInventory({ printerAssignments = {} }) {
                 <div className="frow"><div className="fg"><label className="fl">Name</label><input className="fi" placeholder="e.g. PA12 White" value={form.name} onChange={e => sf("name")(e.target.value)} /></div></div>
                 <div className="frow">
                     <div className="fg"><label className="fl">Brand</label><input className="fi" value={form.brand || ""} onChange={e => sf("brand")(e.target.value)} /></div>
-                    <div className="fg"><label className="fl">Material</label><input className="fi" value={form.type || "Nylon PA12"} onChange={e => sf("type")(e.target.value)} /></div>
+                    <div className="fg"><label className="fl">Material</label><input className="fi" placeholder="e.g. PA12, PA11, TPU Powder" value={form.type || ""} onChange={e => sf("type")(e.target.value)} /></div>
                 </div>
                 <div className="frow">
                     <div className="fg"><label className="fl">Color</label><input type="color" className="fi" style={{ padding: "4px 8px", height: 38 }} value={form.color} onChange={e => sf("color")(e.target.value)} /></div>

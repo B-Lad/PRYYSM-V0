@@ -4,9 +4,11 @@ import { NAV } from './data/nav.js';
 import { useLive } from './hooks/useLive.js';
 import { useRealtimeNotifications } from './hooks/useNotifications.js';
 import { DemoModeContext } from './hooks/useDemoMode.js';
+import { MaterialsContext } from './hooks/useMaterials.js';
 import { api } from './services/api.js';
 import { Modal } from './components/atoms.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
+import { RAW_FILAMENTS, RAW_RESINS, RAW_POWDERS } from './data/seed.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
@@ -51,6 +53,10 @@ export default function App() {
             return {};
         }
     });
+    const [sharedFilaments, setSharedFilaments] = useState([]);
+    const [sharedResins, setSharedResins] = useState([]);
+    const [sharedPowders, setSharedPowders] = useState([]);
+    const materialsValue = { filaments: sharedFilaments, resins: sharedResins, powders: sharedPowders, setFilaments: setSharedFilaments, setResins: setSharedResins, setPowders: setSharedPowders };
     const machines = useLive();
 
     useRealtimeNotifications();
@@ -329,22 +335,23 @@ export default function App() {
     return (
         <ErrorBoundary>
             <DemoModeContext.Provider value={session?.demo_mode === true}>
-                <style>{CSS}</style>
-                <div className="toast-wrap">
-                    {toasts.map(t => <div key={t.id} className={`toast t${t.type}`}><span>{t.type === "s" ? "✓" : t.type === "e" ? "✗" : "ℹ"}</span>{t.msg}</div>)}
-                </div>
-                <div className="app">
-                    <aside className={`sb ${open ? "open" : "col"}`}>
-                        <div className="sb-brand" onClick={() => setOpen(p => !p)}>
-                            <img 
-                                src={open ? "/logo-light.svg" : "/favicon.svg"} 
-                                alt="Pryysm Logo" 
-                                style={{ 
-                                    width: open ? "160px" : "32px",
-                                    height: "auto",
-                                    transition: "all .2s"
-                                }} 
-                            />
+                <MaterialsContext.Provider value={materialsValue}>
+                    <style>{CSS}</style>
+                    <div className="toast-wrap">
+                        {toasts.map(t => <div key={t.id} className={`toast t${t.type}`}><span>{t.type === "s" ? "✓" : t.type === "e" ? "✗" : "ℹ"}</span>{t.msg}</div>)}
+                    </div>
+                    <div className="app">
+                        <aside className={`sb ${open ? "open" : "col"}`}>
+                            <div className="sb-brand" onClick={() => setOpen(p => !p)}>
+                                <img 
+                                    src={open ? "/logo-light.svg" : "/favicon.svg"} 
+                                    alt="Pryysm Logo" 
+                                    style={{ 
+                                        width: open ? "160px" : "32px",
+                                        height: "auto",
+                                        transition: "all .2s"
+                                    }} 
+                                />
                         </div>
                         <nav className="sb-nav">
                             {visibleNav.map(item => (
@@ -429,8 +436,9 @@ export default function App() {
                             <input className="fi" type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} placeholder="jane@example.com" />
                         </div>
                     </Modal>
-                )}
-            </DemoModeContext.Provider>
-        </ErrorBoundary>
-    );
+)}
+            </MaterialsContext.Provider>
+        </DemoModeContext.Provider>
+    </ErrorBoundary>
+);
 }
