@@ -8,6 +8,8 @@ import { MAT_CATALOG, BLANK_MAT, BLANK_GROUP } from '../data/matCatalog.js';
 import { api } from '../services/api.js';
 import { ImageUpload } from '../components/ImageUpload.jsx';
 
+const EMPTY_CATALOG = { types: [], finishes: [], colors: {} };
+
 export function ColorPicker({ cat, mat, gi, mi, setMat }) {
     const colorOpts = (cat.colors[`${mat.matType}|${mat.finish}`] || []);
     const selColor = colorOpts.find(c => c.name === mat.matName);
@@ -35,6 +37,7 @@ export function ColorPicker({ cat, mat, gi, mi, setMat }) {
 
 const WIZ_LABELS = ["General Info", "Items & Tech", "Files & Notes", "Review"];
 export function NewRequestWizard({ onClose, onCreate }) {
+    const isDemo = useDemoMode();
     const [step, setStep] = useState(0);
     const [f, setF] = useState({ name: "", dept: "", projCode: "", owner: "", priority: "normal", due: "", description: "", tech: "FDM", estHrs: 0, estMin: 0, groups: [BLANK_GROUP()], notes: "", imageUrl: "", modelName: "" });
     const set = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -163,7 +166,7 @@ export function NewRequestWizard({ onClose, onCreate }) {
                     </div>
 
                     {f.groups.map((grp, gi) => {
-                        const cat = MAT_CATALOG[f.tech] || MAT_CATALOG.FDM;
+                        const cat = isDemo ? (MAT_CATALOG[f.tech] || MAT_CATALOG.FDM) : EMPTY_CATALOG;
                         return (
                             <div key={gi} style={{ border: "1px solid var(--border2)", borderRadius: "var(--r2)", marginBottom: 12, overflow: "hidden" }}>
                                 {/* Group header */}
@@ -841,7 +844,7 @@ function EditWizard({ proj, onClose, onSave }) {
                         <span className="tiny">Total Groups: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{f.groups.length}</span></span>
                     </div>
                     {f.groups.map((grp, gi) => {
-                        const cat = MAT_CATALOG[f.tech] || MAT_CATALOG.FDM;
+                        const cat = isDemo ? (MAT_CATALOG[f.tech] || MAT_CATALOG.FDM) : EMPTY_CATALOG;
                         return (
                             <div key={gi} style={{ border: "1px solid var(--border2)", borderRadius: "var(--r2)", marginBottom: 12, overflow: "hidden" }}>
                                 <div style={{ background: "var(--bg3)", padding: "8px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

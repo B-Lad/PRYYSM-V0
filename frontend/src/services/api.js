@@ -70,20 +70,20 @@ async function fetchApi(endpoint, options = {}, retries = 2) {
             if (isGet) {
                 setCached(key, data);
             } else {
-                // Invalidate related cache on mutations
                 invalidateCache();
             }
             return data;
         } catch (err) {
             lastError = err;
-            // Only retry on network errors (not 4xx/5xx HTTP errors)
             if (err.message.startsWith('API Error:')) throw err;
             if (attempt < retries) {
-                await sleep(2000); // Wait 2s before retry (Render cold start)
+                await sleep(2000);
             }
         }
     }
-    // eslint-disable-next-line no-console
+    if (lastError?.response?.status === 401) {
+        throw new Error("Incorrect password. Please try again.");
+    }
     console.error('[API Debug] Origin:', window.location.origin, '| API URL:', API_URL, '| Error:', lastError);
     throw new Error(`Network error reaching API at ${API_URL}.\n\nCommon causes:\n1. CORS: Your domain (${window.location.origin}) is not in the backend allowlist.\n2. Render cold start: Backend is waking up — wait 30s and refresh.\n3. Wrong API URL: Check VITE_API_URL env var in Vercel.\n\nOpen browser Console (F12) for details.`);
 }

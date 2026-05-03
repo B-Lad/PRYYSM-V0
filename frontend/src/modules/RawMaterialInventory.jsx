@@ -535,7 +535,7 @@ export function RawMaterialInventory({ printerAssignments = {} }) {
                     <><button className="btn btg bts" onClick={() => setShowAdd(false)}>Cancel</button>
                         <button className="btn btp bts" onClick={saveNew} disabled={!form.name}>Save</button></>
                 )}>
-                    <AddFields />
+                    {AddFields()}
                 </Modal>
             )}
 
