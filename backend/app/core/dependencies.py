@@ -44,10 +44,10 @@ async def get_current_tenant(
         if not role:
             raise ValueError("Missing claims in token")
 
-    except ValueError:
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token claims",
+            detail=str(exc),
         )
 
     return TenantContext(
