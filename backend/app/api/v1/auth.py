@@ -165,7 +165,7 @@ def register(
         if active_users >= settings["max_users"]:
             raise HTTPException(
                 status_code=400,
-                detail=f"This company allows only {settings['max_users']} active users",
+                detail=f"User limit reached ({settings['max_users']} active users). Contact support to upgrade your plan.",
             )
 
         new_user = User(
