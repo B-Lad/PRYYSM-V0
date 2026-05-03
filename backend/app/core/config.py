@@ -48,7 +48,7 @@ class Settings:
     DATABASE_URL: str = _require_env("DATABASE_URL")
     SECRET_KEY: str = _require_env("SECRET_KEY")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
 
     # --- Supabase (optional; only required if using Supabase-specific features) ---
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
