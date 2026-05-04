@@ -65,6 +65,7 @@ def serialize_session(user: User, tenant: Optional[Tenant] = None):
     settings = normalize_tenant_settings(
         resolved_tenant.settings if resolved_tenant else {}
     )
+    is_super = user.role == "super_admin"
     return {
         "id": str(user.id),
         "email": user.email,
@@ -77,7 +78,7 @@ def serialize_session(user: User, tenant: Optional[Tenant] = None):
         "tenant_name": resolved_tenant.name if resolved_tenant else None,
         "max_users": settings.get("max_users"),
         "max_machines": settings.get("max_machines"),
-        "demo_mode": settings.get("demo_mode"),
+        "demo_mode": settings.get("demo_mode") if not is_super else True,
     }
 
 
