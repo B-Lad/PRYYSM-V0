@@ -167,30 +167,30 @@ export function PrintSchedule({ lcProjects = [], printerAssignments = {}, onPrin
             />
 
             {/* Job Confirmation */}
-            <div className="g g21">
-                <div className="card">
+            <div className="g g21" style={{ flexWrap: "wrap" }}>
+                <div className="card" style={{ minWidth: "280px", flex: "1 1 300px" }}>
                     <div className="ch">
                         <span className="ct">Job Confirmation</span>
                         <span className="tiny">Select a printer to view its queue</span>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                         {/* Printer list */}
-                        <div style={{ borderRight: "1px solid var(--border)", padding: "8px 0" }}>
+                        <div style={{ padding: "8px 0", maxHeight: "300px", overflowY: "auto" }}>
                             <div className="tiny" style={{ padding: "4px 14px", marginBottom: 4 }}>Active Printers ({activePrinters.length})</div>
                             {activePrinters.map(p => {
                                 const pendingCount = getPendingCount(p.printerCode);
                                 const isSelected = selPrinter === p.printerCode;
                                 return (
-                                    <div key={p.id} onClick={() => setSelPrinter(p.printerCode)} style={{ padding: "8px 14px", cursor: "pointer", background: isSelected ? "var(--bg3)" : "", borderLeft: `2px solid ${isSelected ? "var(--accent)" : "transparent"}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <div key={p.id} onClick={() => setSelPrinter(p.printerCode)} style={{ padding: "10px 14px", cursor: "pointer", background: isSelected ? "var(--bg3)" : "", borderLeft: `3px solid ${isSelected ? "var(--accent)" : "transparent"}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                             {p.status === "printing" && <span className="pd g" style={{ flexShrink: 0 }} />}
-                                            {p.status === "idle" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />}
-                                            <span style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: isSelected ? "var(--text)" : "var(--text2)" }}>{p.printer}</span>
+                                            {p.status === "idle" && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />}
+                                            <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: isSelected ? "var(--text)" : "var(--text2)" }}>{p.printer}</span>
                                         </div>
                                         {pendingCount > 0 && (
-                                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                            <span style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                                                 <span className="blink-dot" />
-                                                <span style={{ fontSize: 9, fontWeight: 700, color: "var(--gold)" }}>{pendingCount}</span>
+                                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gold)" }}>{pendingCount}</span>
                                             </span>
                                         )}
                                     </div>
@@ -204,15 +204,15 @@ export function PrintSchedule({ lcProjects = [], printerAssignments = {}, onPrin
                                         const pendingCount = getPendingCount(p.printerCode);
                                         const isSelected = selPrinter === p.printerCode;
                                         return (
-                                            <div key={p.id} onClick={() => setSelPrinter(p.printerCode)} style={{ padding: "8px 14px", cursor: "pointer", background: isSelected ? "rgba(184,134,11,.08)" : "", borderLeft: `2px solid ${isSelected ? "var(--gold)" : "transparent"}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <div key={p.id} onClick={() => setSelPrinter(p.printerCode)} style={{ padding: "10px 14px", cursor: "pointer", background: isSelected ? "rgba(184,134,11,.08)" : "", borderLeft: `3px solid ${isSelected ? "var(--gold)" : "transparent"}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                                     <Wrench size={14} strokeWidth={2.5} style={{ color: "var(--gold)", flexShrink: 0 }} />
-                                                    <span style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: isSelected ? "var(--gold)" : "var(--text3)" }}>{p.printer}</span>
+                                                    <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: isSelected ? "var(--gold)" : "var(--text3)" }}>{p.printer}</span>
                                                 </div>
                                                 {pendingCount > 0 && (
-                                                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                                    <span style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                                                         <span className="blink-dot" />
-                                                        <span style={{ fontSize: 9, fontWeight: 700, color: "var(--gold)" }}>{pendingCount}</span>
+                                                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gold)" }}>{pendingCount}</span>
                                                     </span>
                                                 )}
                                             </div>
@@ -221,62 +221,64 @@ export function PrintSchedule({ lcProjects = [], printerAssignments = {}, onPrin
                                 </>
                             )}
                         </div>
-                        {/* Queue panel — filtered to selected printer */}
-                        <div style={{ padding: 14 }}>
-                            <div style={{ fontFamily: "var(--fd)", fontSize: 12, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                                <Printer size={20} strokeWidth={2.5} />
-                                <span>{selPrinterData?.printer || selPrinter}</span>
-                                <span className="tiny" style={{ marginLeft: 8, fontWeight: 400 }}>{selPrinterData?.tech}</span>
-                                <span className="tiny" style={{ marginLeft: 8, color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}><MapPin size={14} strokeWidth={2.5} /> {selPrinterData?.location}</span>
+                    </div>
+                </div>
+                {/* Queue panel — filtered to selected printer */}
+                <div className="card" style={{ minWidth: "280px", flex: "2 1 400px" }}>
+                    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <Printer size={18} strokeWidth={2.5} />
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{selPrinterData?.printer || selPrinter}</span>
+                        <span className="tiny" style={{ fontWeight: 400 }}>{selPrinterData?.tech}</span>
+                        <span className="tiny" style={{ color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} strokeWidth={2.5} /> {selPrinterData?.location}</span>
+                    </div>
+
+                    <div style={{ padding: 14, maxHeight: "400px", overflowY: "auto" }}>
+                        {selPrinterData?.status === "maintenance" && (
+                            <div style={{ background: "rgba(184,134,11,.08)", border: "1px solid rgba(184,134,11,.25)", borderRadius: "var(--r2)", padding: "12px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                                <Wrench size={18} strokeWidth={2.5} style={{ color: "var(--gold)", flexShrink: 0 }} />
+                                <span style={{ fontSize: 12, color: "var(--gold)" }}>This printer is currently under maintenance. No jobs can be assigned.</span>
                             </div>
+                        )}
 
-                            {selPrinterData?.status === "maintenance" && (
-                                <div style={{ background: "rgba(184,134,11,.08)", border: "1px solid rgba(184,134,11,.25)", borderRadius: "var(--r2)", padding: "12px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                                    <Wrench size={18} strokeWidth={2.5} style={{ color: "var(--gold)" }} />
-                                    <span style={{ fontSize: 12, color: "var(--gold)" }}>This printer is currently under maintenance. No jobs can be assigned.</span>
-                                </div>
-                            )}
-
-                            {pendingJobs.length > 0 && (
-                                <div className="mb12">
-                                    <div className="tiny mb8" style={{ color: "var(--yellow)", display: "flex", alignItems: "center", gap: 6 }}><AlertCircle size={16} strokeWidth={2.5} /> Pending Confirmation ({pendingJobs.length})</div>
-                                    {pendingJobs.map(j => (
-                                        <div key={j.id} style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "10px 12px", marginBottom: 8 }}>
-                                            <div className="rowsb mb8">
-                                                <div>
-                                                    <div style={{ fontSize: 12, fontWeight: 600 }}>{j.name}</div>
-                                                    <div className="tiny">{j.code} · Starts: {j.start}</div>
-                                                </div>
-                                                <button className="btn btp bts" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 6 }} onClick={() => confirmJob(j.id)}><CheckCircle size={14} strokeWidth={2.5} /> Confirm</button>
+                        {pendingJobs.length > 0 && (
+                            <div className="mb12">
+                                <div className="tiny mb8" style={{ color: "var(--yellow)", display: "flex", alignItems: "center", gap: 6 }}><AlertCircle size={14} strokeWidth={2.5} /> Pending Confirmation ({pendingJobs.length})</div>
+                                {pendingJobs.map(j => (
+                                    <div key={j.id} style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "10px 12px", marginBottom: 8 }}>
+                                        <div className="rowsb mb6" style={{ flexWrap: "wrap", gap: 8 }}>
+                                            <div>
+                                                <div style={{ fontSize: 12, fontWeight: 600 }}>{j.name}</div>
+                                                <div className="tiny">{j.code} · Starts: {j.start}</div>
                                             </div>
-                                            <div className="row" style={{ gap: 10, alignItems: "center" }}>
-                                                {j.imageUrl && (
-                                                    <img src={j.imageUrl} alt={j.name} style={{ width: 48, height: 48, borderRadius: "var(--r2)", objectFit: "cover", border: "1px solid var(--border)" }} />
-                                                )}
-                                                {j.modelName && (
-                                                    <div className="row" style={{ gap: 6, alignItems: "center" }}>
-                                                        <span className="tiny" style={{ color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}><FileBox size={14} strokeWidth={2.5} /> {j.modelName}</span>
-                                                        <button className="btn btg bts" style={{ fontSize: 9, padding: "4px 10px", display: "flex", alignItems: "center", gap: 4 }} onClick={() => downloadModel(j.modelName)}><Download size={12} strokeWidth={2.5} /> Download</button>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <button className="btn btp bts" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }} onClick={() => confirmJob(j.id)}><CheckCircle size={12} strokeWidth={2.5} /> Confirm</button>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {confirmedJobs.length > 0 ? <>
-                                <div className="tiny mb8" style={{ color: "var(--green)", display: "flex", alignItems: "center", gap: 6 }}><CheckCircle size={16} strokeWidth={2.5} /> Confirmed Queue ({confirmedJobs.length})</div>
-                                {confirmedJobs.map(j => (
-                                    <div key={j.id} style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "10px 12px", marginBottom: 6 }}>
-                                        <div style={{ fontSize: 12, fontWeight: 500 }}>{j.name}</div>
-                                        <div className="tiny">{j.code} · Starts: {j.start}</div>
+                                        <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                            {j.imageUrl && (
+                                                <img src={j.imageUrl} alt={j.name} style={{ width: 40, height: 40, borderRadius: "var(--r2)", objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0 }} />
+                                            )}
+                                            {j.modelName && (
+                                                <div className="row" style={{ gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                                    <span className="tiny" style={{ color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}><FileBox size={12} strokeWidth={2.5} /> {j.modelName}</span>
+                                                    <button className="btn btg bts" style={{ fontSize: 9, padding: "3px 8px", display: "flex", alignItems: "center", gap: 3 }} onClick={() => downloadModel(j.modelName)}><Download size={10} strokeWidth={2.5} /> Download</button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
-                            </> : pendingJobs.length === 0 && (
-                                <div style={{ textAlign: "center", padding: "32px 0", color: "var(--text3)", fontSize: 12 }}>No jobs queued for this printer.</div>
-                            )}
-                        </div>
+                            </div>
+                        )}
+
+                        {confirmedJobs.length > 0 ? <>
+                            <div className="tiny mb8" style={{ color: "var(--green)", display: "flex", alignItems: "center", gap: 6 }}><CheckCircle size={14} strokeWidth={2.5} /> Confirmed Queue ({confirmedJobs.length})</div>
+                            {confirmedJobs.map(j => (
+                                <div key={j.id} style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "10px 12px", marginBottom: 6 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 500 }}>{j.name}</div>
+                                    <div className="tiny">{j.code} · Starts: {j.start}</div>
+                                </div>
+                            ))}
+                        </> : pendingJobs.length === 0 && (
+                            <div style={{ textAlign: "center", padding: "32px 0", color: "var(--text3)", fontSize: 12 }}>No jobs queued for this printer.</div>
+                        )}
                     </div>
                 </div>
             </div>
