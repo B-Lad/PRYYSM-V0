@@ -59,12 +59,13 @@ async function fetchApi(endpoint, options = {}, retries = 2) {
     if (token) config.headers['Authorization'] = `Bearer ${token}`;
 
     let lastError;
+    let lastStatus;
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
             const response = await fetch(url, config);
             if (!response.ok) {
                 const errorBody = await response.json().catch(() => ({}));
-                throw new Error(errorBody.detail || `API Error: ${response.status} ${response.statusText}`);
+                throw Object.assign(new Error(errorBody.detail || `API Error: ${response.status} ${response.statusText}`), { status: response.status });
             }
             const data = await response.json();
             if (isGet) {
@@ -75,13 +76,14 @@ async function fetchApi(endpoint, options = {}, retries = 2) {
             return data;
         } catch (err) {
             lastError = err;
+            lastStatus = err.status;
             if (err.message.startsWith('API Error:')) throw err;
             if (attempt < retries) {
                 await sleep(2000);
             }
         }
     }
-    if (lastError?.response?.status === 401) {
+    if (lastStatus === 401) {
         throw new Error("Incorrect password. Please try again.");
     }
     console.error('[API Debug] Origin:', window.location.origin, '| API URL:', API_URL, '| Error:', lastError);
